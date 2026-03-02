@@ -1,0 +1,97 @@
+# Phase 1 Bootstrap
+
+This repository now contains the Phase 1 baseline described in the refactor plan:
+
+- Local MySQL bootstrap SQL under [`sql/mysql/phase1_seed.sql`](/D:/workspace/api-data-gen/sql/mysql/phase1_seed.sql)
+- Python domain models and repository/services under [`src/api_data_gen`](/D:/workspace/api-data-gen/src/api_data_gen)
+- Standard-library unit tests under [`tests`](/D:/workspace/api-data-gen/tests)
+
+## Local Setup
+
+Install the package once in editable mode so the `api-data-gen` command is available:
+
+```powershell
+pip install -e .
+```
+
+Create a local `.env` from [`.env.example`](/D:/workspace/api-data-gen/.env.example) and fill in your MySQL password if needed.
+
+## Bootstrap Order
+
+Run the SQL script once against a local MySQL 8.x instance:
+
+```powershell
+mysql --default-character-set=utf8mb4 -u root -p < sql/mysql/phase1_seed.sql
+```
+
+If you import from Windows `cmd` or PowerShell, keep the `--default-character-set=utf8mb4` flag. The seed file contains Chinese sample data and dictionary values.
+
+The script is ordered as:
+
+1. Create `rrs_test_dev`
+2. Create `aml_new3`
+3. Create dictionary tables
+4. Create business tables and seed minimal rows
+5. Create trace tables and seed trace rows
+6. Create `field_match_relations`
+
+## Seed Data Notes
+
+The seed script includes the user-provided DDL and sample rows, plus two Phase 1 compatibility additions:
+
+- `aml_new3.aml_f_tidb_model_result` includes two `WSTY001` rows derived from the supplied trace payload so business-table sampling matches the target case.
+- `rrs_test_dev.t_aml_sys_dict_info` includes a `receive_pay_cd -> receive_pay` mapping row so the current Java dictionary lookup order can succeed locally.
+
+## CLI Examples
+
+Print interface SQL extraction:
+
+```powershell
+api-data-gen interface --api-path /wst/custTransInfo --api-name "custTransInfo"
+api-data-gen interface --api-path /wst/custDrftRecord --api-name "custDrftRecord"
+```
+
+Print a table schema:
+
+```powershell
+api-data-gen schema --table aml_f_wst_alert_cust_trans_info
+```
+
+Sample table rows:
+
+```powershell
+api-data-gen sample --table aml_f_wst_alert_cust_drft_record --limit 3
+```
+
+Resolve dictionary values:
+
+```powershell
+api-data-gen dict --column receive_pay_cd --comment "资金收付表示"
+```
+
+Run the full Phase 1 compatibility check:
+
+```powershell
+api-data-gen validate
+```
+
+If you want to use a non-default env file:
+
+```powershell
+api-data-gen --env-file .env.local validate
+```
+
+If you do not want to install the package yet, the same command can be run with:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m api_data_gen.cli.main validate
+```
+
+## Local Validation
+
+The repository uses `unittest`, not `pytest`, so local validation does not require extra tooling:
+
+```powershell
+python -m unittest discover -s tests -v
+```
