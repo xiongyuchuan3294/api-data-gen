@@ -6,10 +6,17 @@ from api_data_gen.infra.db.mysql_client import quote_identifier
 
 
 class SampleRepository:
-    def __init__(self, client: QueryClient, trace_schema: str, schema_repository=None):
+    def __init__(
+        self,
+        client: QueryClient,
+        trace_schema: str,
+        schema_repository=None,
+        field_match_discovery_service=None,
+    ):
         self._client = client
         self._trace_schema = trace_schema
         self._schema_repository = schema_repository
+        self._field_match_discovery_service = field_match_discovery_service
 
     def sample_rows(self, table_name: str, limit: int) -> list[dict[str, str]]:
         schema_name, local_name = self._client.resolve_table_location(table_name)
@@ -29,6 +36,16 @@ class SampleRepository:
             WHERE target_table = %s
         """
         relations = self._client.fetch_all(query, (table_name,))
+        if not relations and self._field_match_discovery_service is not None:
+            discovered = self._field_match_discovery_service.discover(table_name)
+            relations = [
+                {
+                    "target_field": relation.target_field,
+                    "source_table": relation.source_table,
+                    "source_field": relation.source_field,
+                }
+                for relation in discovered
+            ]
         if not relations:
             return []
 

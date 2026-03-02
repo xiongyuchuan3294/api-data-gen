@@ -1,0 +1,1639 @@
+{
+  "requirement": {
+    "summary": "希望基于需求描述和接口名和接口对应的SQL查询行为，来生成测试场景和造数。",
+    "constraints": [
+      "由于这是在内网下查询数据库生成的，所以建议在本机的mysql生成新的表，以模拟内网的数据环境。如果需要表结构和样例数据，可以告诉我，",
+      "而目前是在代码中写死的，优先用本地的造数方法去生成，再用AI解析生成。",
+      "【要求】",
+      "任务中每一个功能都很大，建议分步生成markdown落地方案后，分步执行，不要直接写代码"
+    ],
+    "keywords": [
+      "测试场景",
+      "造数",
+      "接口",
+      "SQL",
+      "agent",
+      "skill",
+      "模块化",
+      "LLM"
+    ]
+  },
+  "scenarios": [],
+  "table_plans": [
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "result_key",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "WSTY0012020-12-20962020122711000002",
+            "WSTY0012020-11-259620220922110010"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "model_type",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "BS"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "result_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-27"
+          ],
+          "rationale": "Derived from SQL filters: result_date <= '2020-12-27'"
+        },
+        {
+          "column_name": "cust_model_result",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "1"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_seq",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "20201220001",
+            "20201125001"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_version",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "1.0"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20",
+            "2020-11-25"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_trans_info",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "alert_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+        },
+        {
+          "column_name": "transactionkey",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2012100170247697657UC0FIQKKIU6TD-1",
+            "2012100170247697657UC0FIQKKIU6TD-2",
+            "2012100170247697657UC0FIQKKIU6TD-13"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "trans_time",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-11-26 09:48:54",
+            "2020-11-26 09:47:54",
+            "2020-11-26 10:45:54"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "cust_name",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁麒麟湾体育公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "receive_pay_cd",
+          "source": "dictionary",
+          "required": false,
+          "suggested_values": [
+            "01",
+            "02"
+          ],
+          "rationale": "Resolved from import/system dictionary mapping."
+        },
+        {
+          "column_name": "trans_amount",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "129876.4000",
+            "98765.4300"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "drft_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "510355201611120250722102158993_000009189488_0000093478",
+            "510355201611120250722102158993_000009189488_0000093479"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "last_req_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "深圳纸杯伈制造技忄有彡公司",
+            "北京天安科技公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "drwr_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "深圳纸杯誋制造技忄有彡公司",
+            "上海浦东发展公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_drft_record",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "alert_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+        },
+        {
+          "column_name": "drft_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "510355201611120250722102158993_000009189488_0000093478"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "seq_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "8",
+            "7",
+            "10"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "msg_typ",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "背书"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "req_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁屿东城体育公司",
+            "大连上自称有限公司",
+            "北京天安科技公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "rcv_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁麒麟湾体育公司",
+            "辽宁屿东城体育公司",
+            "上海浦东发展公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "sgn_up_dt",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "20200724",
+            "20200721",
+            "20200725"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    }
+  ],
+  "generated_tables": [],
+  "scenario_generations": [],
+  "validation_checks": [],
+  "generation_tag": "",
+  "apply_result": null,
+  "agent_run": {
+    "decision": {
+      "mode": "agent_prompt",
+      "operation": "generate",
+      "scenario_strategy": "agent_decides",
+      "data_strategy": "agent_decides",
+      "selected_skills": [
+        "extract_interface_sql",
+        "load_table_schema",
+        "resolve_local_generators",
+        "generate_scenarios_local",
+        "sample_table_data",
+        "generate_table_rows_local",
+        "merge_and_validate_rows",
+        "render_insert_sql"
+      ],
+      "reasoning": [
+        "Agent mode only prepares prompt specs and local methods; scenario and data generation are delegated to the external model."
+      ]
+    },
+    "executed_skills": [
+      {
+        "skill_name": "extract_interface_sql",
+        "status": "completed",
+        "summary": "2 interfaces"
+      },
+      {
+        "skill_name": "load_table_schema",
+        "status": "completed",
+        "summary": "3 tables"
+      },
+      {
+        "skill_name": "resolve_local_generators",
+        "status": "completed",
+        "summary": "aml_f_tidb_model_result=2, aml_f_wst_alert_cust_trans_info=3, aml_f_wst_alert_cust_drft_record=1"
+      },
+      {
+        "skill_name": "build_table_plans_local",
+        "status": "completed",
+        "summary": "3 table plans"
+      },
+      {
+        "skill_name": "sample_table_data",
+        "status": "completed",
+        "summary": "3 sampled tables"
+      }
+    ]
+  },
+  "agent_bundle": {
+    "operation": "generate",
+    "tool_specs": [
+      {
+        "name": "extract_interface_sql",
+        "description": "提取接口 trace、SQL、表和过滤条件。",
+        "input_hint": "api_name, api_path",
+        "output_hint": "InterfaceInfo"
+      },
+      {
+        "name": "load_table_schema",
+        "description": "加载并标准化目标表 schema。",
+        "input_hint": "table_name",
+        "output_hint": "TableSchema"
+      },
+      {
+        "name": "resolve_local_generators",
+        "description": "识别适合本地规则生成的字段。",
+        "input_hint": "TableSchema",
+        "output_hint": "field_names"
+      },
+      {
+        "name": "build_table_plans_local",
+        "description": "根据 SQL 条件、schema 和样本构建表级造数计划。",
+        "input_hint": "requirement, InterfaceInfo, TableSchema, sample_rows",
+        "output_hint": "TableDataPlan[]"
+      },
+      {
+        "name": "generate_scenarios_local",
+        "description": "基于接口行为和规则生成本地参考场景。",
+        "input_hint": "requirement, InterfaceInfo, TableSchema",
+        "output_hint": "ScenarioDraft[]"
+      },
+      {
+        "name": "generate_scenarios_ai",
+        "description": "由外部模型直接生成测试场景。",
+        "input_hint": "prompt_spec + local_context",
+        "output_hint": "ScenarioDraft[] JSON"
+      },
+      {
+        "name": "sample_table_data",
+        "description": "采样业务表数据供后续推理和补数使用。",
+        "input_hint": "table_name, limit",
+        "output_hint": "rows[]"
+      },
+      {
+        "name": "analyze_samples_ai",
+        "description": "由外部模型分析样本特征与字段模式。",
+        "input_hint": "prompt_spec + sample_rows",
+        "output_hint": "analysis JSON"
+      },
+      {
+        "name": "generate_table_rows_local",
+        "description": "优先使用本地规则和样本生成记录。",
+        "input_hint": "TableDataPlan, TableSchema",
+        "output_hint": "GeneratedRow[]"
+      },
+      {
+        "name": "generate_table_rows_ai",
+        "description": "由外部模型补齐非本地字段。",
+        "input_hint": "prompt_spec + selected_scenario + local_context",
+        "output_hint": "row JSON"
+      },
+      {
+        "name": "merge_and_validate_rows",
+        "description": "合并本地/AI结果并执行记录级校验。",
+        "input_hint": "local_rows, ai_rows, TableSchema",
+        "output_hint": "validated_rows, checks"
+      },
+      {
+        "name": "render_insert_sql",
+        "description": "把记录渲染为 INSERT SQL。",
+        "input_hint": "validated_rows, TableSchema",
+        "output_hint": "INSERT SQL"
+      }
+    ],
+    "prompt_specs": [
+      {
+        "name": "route_generation_strategy",
+        "purpose": "让外部模型基于当前上下文选择场景策略、数据策略和 skill 顺序。",
+        "system_prompt": "你是一名测试数据编排 agent。你只能基于给定的本地技能和上下文做策略决策，不能假设额外工具。",
+        "user_prompt": "任务类型: generate\n需求摘要: 希望基于需求描述和接口名和接口对应的SQL查询行为，来生成测试场景和造数。\n需求约束: ['由于这是在内网下查询数据库生成的，所以建议在本机的mysql生成新的表，以模拟内网的数据环境。如果需要表结构和样例数据，可以告诉我，', '而目前是在代码中写死的，优先用本地的造数方法去生成，再用AI解析生成。', '【要求】', '任务中每一个功能都很大，建议分步生成markdown落地方案后，分步执行，不要直接写代码']\n关键词: ['测试场景', '造数', '接口', 'SQL', 'agent', 'skill', '模块化', 'LLM']\n固定值: ['[none]']\n依赖固定值: ['[none]']\n接口上下文:\n- custTransInfo /wst/custTransInfo: aml_f_tidb_model_result, aml_f_wst_alert_cust_trans_info\n- custDrftRecord /wst/custDrftRecord: aml_f_tidb_model_result, aml_f_wst_alert_cust_drft_record\n表结构与本地规则:\n- aml_f_tidb_model_result: 10 columns, pk=uuid, local_fields=cust_id,model_seq\n- aml_f_wst_alert_cust_trans_info: 13 columns, pk=uuid, local_fields=cust_id,receive_pay_cd,transactionkey\n- aml_f_wst_alert_cust_drft_record: 11 columns, pk=uuid, local_fields=cust_id\n可用技能:\n- extract_interface_sql: 提取接口 trace、SQL、表和过滤条件。\n- load_table_schema: 加载并标准化目标表 schema。\n- resolve_local_generators: 识别适合本地规则生成的字段。\n- build_table_plans_local: 根据 SQL 条件、schema 和样本构建表级造数计划。\n- generate_scenarios_local: 基于接口行为和规则生成本地参考场景。\n- generate_scenarios_ai: 由外部模型直接生成测试场景。\n- sample_table_data: 采样业务表数据供后续推理和补数使用。\n- analyze_samples_ai: 由外部模型分析样本特征与字段模式。\n- generate_table_rows_local: 优先使用本地规则和样本生成记录。\n- generate_table_rows_ai: 由外部模型补齐非本地字段。\n- merge_and_validate_rows: 合并本地/AI结果并执行记录级校验。\n- render_insert_sql: 把记录渲染为 INSERT SQL。\n\n请选择场景策略和造数策略，并给出建议技能顺序。\n可选 scenario_strategy: local, ai, agent_decides\n可选 data_strategy: local_only, local_then_ai, agent_decides\n严格输出 JSON 对象，字段如下:\n{\n  \"scenario_strategy\": \"local|ai|agent_decides\",\n  \"data_strategy\": \"local_only|local_then_ai|agent_decides\",\n  \"selected_skills\": [\"skill_a\", \"skill_b\"],\n  \"reasoning\": [\"reason 1\", \"reason 2\"]\n}\n",
+        "expected_output": "{\"scenario_strategy\":\"ai\",\"data_strategy\":\"local_then_ai\",\"selected_skills\":[\"...\"],\"reasoning\":[\"...\"]}"
+      },
+      {
+        "name": "generate_test_scenarios",
+        "purpose": "让外部模型直接生成测试场景。",
+        "system_prompt": "你是一名金融测试场景设计专家。你只能依据给定上下文和本地规则能力生成可执行场景。",
+        "user_prompt": "需求摘要: 希望基于需求描述和接口名和接口对应的SQL查询行为，来生成测试场景和造数。\n需求约束: ['由于这是在内网下查询数据库生成的，所以建议在本机的mysql生成新的表，以模拟内网的数据环境。如果需要表结构和样例数据，可以告诉我，', '而目前是在代码中写死的，优先用本地的造数方法去生成，再用AI解析生成。', '【要求】', '任务中每一个功能都很大，建议分步生成markdown落地方案后，分步执行，不要直接写代码']\n关键词: ['测试场景', '造数', '接口', 'SQL', 'agent', 'skill', '模块化', 'LLM']\n固定值: ['[none]']\n依赖固定值: ['[none]']\n接口和 SQL 链路:\n- 接口 custTransInfo /wst/custTransInfo\n  - 表 aml_f_tidb_model_result; 条件 [\"(cust_id = '962020122711000002'\", \"result_date <= '2020-12-27'\", \"model_key = 'WSTY001')\"]\n  - 表 aml_f_wst_alert_cust_trans_info; 条件 [\"(cust_id = '962020122711000002'\", \"model_key = 'WSTY001'\", \"alert_date = '2020-12-20')\"]\n- 接口 custDrftRecord /wst/custDrftRecord\n  - 表 aml_f_tidb_model_result; 条件 [\"(cust_id = '962020122711000002'\", \"result_date <= '2020-12-27'\", \"model_key = 'WSTY001')\"]\n  - 表 aml_f_wst_alert_cust_drft_record; 条件 [\"(cust_id = '962020122711000002'\", \"model_key = 'WSTY001'\", \"alert_date = '2020-12-20')\"]\n表结构与本地字段能力:\n- aml_f_tidb_model_result: columns=uuid, result_key, model_key, model_type, cust_id, result_date, cust_model_result, model_seq, model_version, ds; local_fields=['cust_id', 'model_seq']\n- aml_f_wst_alert_cust_trans_info: columns=uuid, cust_id, model_key, alert_date, transactionkey, trans_time, cust_name, receive_pay_cd, trans_amount, drft_no, last_req_nm, drwr_nm, ds; local_fields=['cust_id', 'receive_pay_cd', 'transactionkey']\n- aml_f_wst_alert_cust_drft_record: columns=uuid, cust_id, model_key, alert_date, drft_no, seq_no, msg_typ, req_nm, rcv_nm, sgn_up_dt, ds; local_fields=['cust_id']\n表级造数计划:\n- aml_f_tidb_model_result: row_hint=3; columns=['uuid:generated', 'result_key:sample', 'model_key:condition', 'model_type:sample', 'cust_id:condition', 'result_date:condition', 'cust_model_result:sample', 'model_seq:sample', 'model_version:sample', 'ds:sample']\n- aml_f_wst_alert_cust_trans_info: row_hint=3; columns=['uuid:generated', 'cust_id:condition', 'model_key:condition', 'alert_date:condition', 'transactionkey:sample', 'trans_time:sample', 'cust_name:sample', 'receive_pay_cd:dictionary', 'trans_amount:sample', 'drft_no:sample', 'last_req_nm:sample', 'drwr_nm:sample', 'ds:sample']\n- aml_f_wst_alert_cust_drft_record: row_hint=3; columns=['uuid:generated', 'cust_id:condition', 'model_key:condition', 'alert_date:condition', 'drft_no:sample', 'seq_no:sample', 'msg_typ:sample', 'req_nm:sample', 'rcv_nm:sample', 'sgn_up_dt:sample', 'ds:sample']\n本地参考场景:\n- custTransInfo:baseline: custTransInfo baseline replay; tables=['aml_f_tidb_model_result', 'aml_f_wst_alert_cust_trans_info']\n- custTransInfo:pagination: custTransInfo pagination stability; tables=['aml_f_tidb_model_result', 'aml_f_wst_alert_cust_trans_info']\n- custTransInfo:dictionary: custTransInfo dictionary consistency; tables=['aml_f_tidb_model_result', 'aml_f_wst_alert_cust_trans_info']\n- custDrftRecord:baseline: custDrftRecord baseline replay; tables=['aml_f_tidb_model_result', 'aml_f_wst_alert_cust_drft_record']\n- custDrftRecord:pagination: custDrftRecord pagination stability; tables=['aml_f_tidb_model_result', 'aml_f_wst_alert_cust_drft_record']\n\n请直接生成测试场景。必须优先复用固定值和本地规则，不要要求额外工具。\n输出严格 JSON 数组。每个场景字段:\n{\n  \"name\": \"场景名称\",\n  \"description\": \"场景目标\",\n  \"tableRequirements\": {\"table_name\": \"该表需要的数据要求\"}\n}\n",
+        "expected_output": "[{\"name\":\"核心链路命中\",\"description\":\"...\",\"tableRequirements\":{\"table_a\":\"...\"}}]"
+      },
+      {
+        "name": "generate_test_data",
+        "purpose": "让外部模型直接生成测试数据。",
+        "system_prompt": "你是一名数据库测试数据生成专家。你只能输出结构化 JSON，不要解释。",
+        "user_prompt": "需求摘要: 希望基于需求描述和接口名和接口对应的SQL查询行为，来生成测试场景和造数。\n固定值: ['[none]']\n依赖固定值: ['[none]']\n表结构:\n- aml_f_tidb_model_result: columns=uuid:varchar(64), result_key:varchar(128), model_key:varchar(64), model_type:varchar(8), cust_id:varchar(64), result_date:varchar(32), cust_model_result:varchar(64), model_seq:longtext, model_version:varchar(16), ds:varchar(32); local_fields=['cust_id', 'model_seq']\n- aml_f_wst_alert_cust_trans_info: columns=uuid:varchar(64), cust_id:varchar(32), model_key:varchar(10), alert_date:varchar(10), transactionkey:varchar(50), trans_time:datetime, cust_name:varchar(64), receive_pay_cd:varchar(2), trans_amount:decimal(20,4), drft_no:varchar(64), last_req_nm:varchar(64), drwr_nm:varchar(64), ds:varchar(32); local_fields=['cust_id', 'receive_pay_cd', 'transactionkey']\n- aml_f_wst_alert_cust_drft_record: columns=uuid:varchar(64), cust_id:varchar(32), model_key:varchar(10), alert_date:varchar(10), drft_no:varchar(64), seq_no:varchar(8), msg_typ:varchar(16), req_nm:varchar(64), rcv_nm:varchar(64), sgn_up_dt:varchar(8), ds:varchar(32); local_fields=['cust_id']\n表级造数计划:\n- aml_f_tidb_model_result: row_hint=3; column_sources=['uuid:generated', 'result_key:sample', 'model_key:condition', 'model_type:sample', 'cust_id:condition', 'result_date:condition', 'cust_model_result:sample', 'model_seq:sample', 'model_version:sample', 'ds:sample']\n- aml_f_wst_alert_cust_trans_info: row_hint=3; column_sources=['uuid:generated', 'cust_id:condition', 'model_key:condition', 'alert_date:condition', 'transactionkey:sample', 'trans_time:sample', 'cust_name:sample', 'receive_pay_cd:dictionary', 'trans_amount:sample', 'drft_no:sample', 'last_req_nm:sample', 'drwr_nm:sample', 'ds:sample']\n- aml_f_wst_alert_cust_drft_record: row_hint=3; column_sources=['uuid:generated', 'cust_id:condition', 'model_key:condition', 'alert_date:condition', 'drft_no:sample', 'seq_no:sample', 'msg_typ:sample', 'req_nm:sample', 'rcv_nm:sample', 'sgn_up_dt:sample', 'ds:sample']\n样本数据:\n- aml_f_tidb_model_result: [{'uuid': '01A819A45584B9957A0C8751CCD6B163', 'result_key': 'WSTY0012020-12-20962020122711000002', 'model_key': 'WSTY001', 'model_type': 'BS', 'cust_id': '962020122711000002', 'result_date': '2020-12-20', 'cust_model_result': '1', 'model_seq': '20201220001', 'model_version': '1.0', 'ds': '2020-12-20'}, {'uuid': '02A819A45584B9957A0C8751CCD6B164', 'result_key': 'WSTY0012020-11-259620220922110010', 'model_key': 'WSTY001', 'model_type': 'BS', 'cust_id': '962020122711000002', 'result_date': '2020-11-25', 'cust_model_result': '1', 'model_seq': '20201125001', 'model_version': '1.0', 'ds': '2020-11-25'}, {'uuid': 'AMLFTIDB_F81C34_001', 'result_key': 'WSTY0012020-12-20962020122711000002', 'model_key': 'WSTY001', 'model_type': 'BS', 'cust_id': '962020122711000002', 'result_date': '2020-12-27', 'cust_model_result': '1', 'model_seq': '20201220001', 'model_version': '1.0', 'ds': '2020-12-20'}]\n- aml_f_wst_alert_cust_trans_info: [{'uuid': '10K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5', 'cust_id': '962020122711000002', 'model_key': 'WSTY001', 'alert_date': '2020-12-20', 'transactionkey': '2012100170247697657UC0FIQKKIU6TD-1', 'trans_time': '2020-11-26 09:48:54', 'cust_name': '辽宁麒麟湾体育公司', 'receive_pay_cd': '收', 'trans_amount': '129876.4000', 'drft_no': '510355201611120250722102158993_000009189488_0000093478', 'last_req_nm': '深圳纸杯伈制造技忄有彡公司', 'drwr_nm': '深圳纸杯誋制造技忄有彡公司', 'ds': '2020-12-20'}, {'uuid': '11K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5', 'cust_id': '962020122711000002', 'model_key': 'WSTY001', 'alert_date': '2020-12-20', 'transactionkey': '2012100170247697657UC0FIQKKIU6TD-2', 'trans_time': '2020-11-26 09:47:54', 'cust_name': '辽宁麒麟湾体育公司', 'receive_pay_cd': '付', 'trans_amount': '129876.4000', 'drft_no': '510355201611120250722102158993_000009189488_0000093478', 'last_req_nm': '深圳纸杯伈制造技忄有彡公司', 'drwr_nm': '深圳纸杯誋制造技忄有彡公司', 'ds': '2020-12-20'}, {'uuid': '31K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5', 'cust_id': '962020122711000002', 'model_key': 'WSTY001', 'alert_date': '2020-12-20', 'transactionkey': '2012100170247697657UC0FIQKKIU6TD-13', 'trans_time': '2020-11-26 10:45:54', 'cust_name': '辽宁麒麟湾体育公司', 'receive_pay_cd': '付', 'trans_amount': '98765.4300', 'drft_no': '510355201611120250722102158993_000009189488_0000093479', 'last_req_nm': '北京天安科技公司', 'drwr_nm': '上海浦东发展公司', 'ds': '2020-12-20'}]\n- aml_f_wst_alert_cust_drft_record: [{'uuid': '026BB52c09A87Sc108D9D32C3D1D242', 'cust_id': '962020122711000002', 'model_key': 'WSTY001', 'alert_date': '2020-12-20', 'drft_no': '510355201611120250722102158993_000009189488_0000093478', 'seq_no': '8', 'msg_typ': '背书', 'req_nm': '辽宁屿东城体育公司', 'rcv_nm': '辽宁麒麟湾体育公司', 'sgn_up_dt': '20200724', 'ds': '2020-12-20'}, {'uuid': '116BB52c09A87Sc108D9D32C3D1D242', 'cust_id': '962020122711000002', 'model_key': 'WSTY001', 'alert_date': '2020-12-20', 'drft_no': '510355201611120250722102158993_000009189488_0000093478', 'seq_no': '7', 'msg_typ': '背书', 'req_nm': '大连上自称有限公司', 'rcv_nm': '辽宁屿东城体育公司', 'sgn_up_dt': '20200721', 'ds': '2020-12-20'}, {'uuid': 'A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6', 'cust_id': '962020122711000002', 'model_key': 'WSTY001', 'alert_date': '2020-12-20', 'drft_no': '510355201611120250722102158993_000009189488_0000093478', 'seq_no': '10', 'msg_typ': '背书', 'req_nm': '北京天安科技公司', 'rcv_nm': '上海浦东发展公司', 'sgn_up_dt': '20200725', 'ds': '2020-12-20'}]\n\n选中的测试场景 JSON 如下，请基于它直接生成测试数据:\n{{SELECTED_SCENARIO_JSON}}\n\n约束:\n1. 本地规则字段不要重新发明格式，只补齐非本地字段。\n2. 保持跨表字段一致性。\n3. 输出严格 JSON 数组，每个元素格式为 {\"table\": \"表名\", \"data\": [{...}] }。\n",
+        "expected_output": "[{\"table\":\"table_a\",\"data\":[{\"field\":\"value\"}]}]"
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "custTransInfo",
+        "path": "/wst/custTransInfo"
+      },
+      {
+        "name": "custDrftRecord",
+        "path": "/wst/custDrftRecord"
+      }
+    ],
+    "interface_infos": [
+      {
+        "name": "custTransInfo",
+        "path": "/wst/custTransInfo",
+        "sql_infos": [
+          {
+            "table_name": "aml_f_tidb_model_result",
+            "conditions": [
+              "(cust_id = '962020122711000002'",
+              "result_date <= '2020-12-27'",
+              "model_key = 'WSTY001')"
+            ]
+          },
+          {
+            "table_name": "aml_f_wst_alert_cust_trans_info",
+            "conditions": [
+              "(cust_id = '962020122711000002'",
+              "model_key = 'WSTY001'",
+              "alert_date = '2020-12-20')"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "custDrftRecord",
+        "path": "/wst/custDrftRecord",
+        "sql_infos": [
+          {
+            "table_name": "aml_f_tidb_model_result",
+            "conditions": [
+              "(cust_id = '962020122711000002'",
+              "result_date <= '2020-12-27'",
+              "model_key = 'WSTY001')"
+            ]
+          },
+          {
+            "table_name": "aml_f_wst_alert_cust_drft_record",
+            "conditions": [
+              "(cust_id = '962020122711000002'",
+              "model_key = 'WSTY001'",
+              "alert_date = '2020-12-20')"
+            ]
+          }
+        ]
+      }
+    ],
+    "schemas": {
+      "aml_f_tidb_model_result": {
+        "table_name": "aml_f_tidb_model_result",
+        "table_type": "innodb",
+        "columns": [
+          {
+            "name": "uuid",
+            "type": "varchar(64)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "主键id",
+            "is_primary_key": true,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "result_key",
+            "type": "varchar(128)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型主键+日期+cust_id",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 128
+          },
+          {
+            "name": "model_key",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型主键",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "model_type",
+            "type": "varchar(8)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型类型:bh大额bs可疑",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 8
+          },
+          {
+            "name": "cust_id",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型客户号",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "result_date",
+            "type": "varchar(32)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型结果日期",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 32
+          },
+          {
+            "name": "cust_model_result",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型结果",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "model_seq",
+            "type": "longtext",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型树结果序列化",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 0
+          },
+          {
+            "name": "model_version",
+            "type": "varchar(16)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "模型版本",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 16
+          },
+          {
+            "name": "ds",
+            "type": "varchar(32)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "数据日期",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 32
+          }
+        ],
+        "primary_keys": [
+          "uuid"
+        ]
+      },
+      "aml_f_wst_alert_cust_trans_info": {
+        "table_name": "aml_f_wst_alert_cust_trans_info",
+        "table_type": "innodb",
+        "columns": [
+          {
+            "name": "uuid",
+            "type": "varchar(64)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "主键",
+            "is_primary_key": true,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "cust_id",
+            "type": "varchar(32)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "客户号",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 32
+          },
+          {
+            "name": "model_key",
+            "type": "varchar(10)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "模型主键",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 10
+          },
+          {
+            "name": "alert_date",
+            "type": "varchar(10)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "预警日期",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 10
+          },
+          {
+            "name": "transactionkey",
+            "type": "varchar(50)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "交易流水号",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 50
+          },
+          {
+            "name": "trans_time",
+            "type": "datetime",
+            "nullable": true,
+            "default_value": null,
+            "comment": "交易时间",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 0
+          },
+          {
+            "name": "cust_name",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "客户名称",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "receive_pay_cd",
+            "type": "varchar(2)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "资金收付表示",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 2
+          },
+          {
+            "name": "trans_amount",
+            "type": "decimal(20,4)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "交易金额",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 20
+          },
+          {
+            "name": "drft_no",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "票号",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "last_req_nm",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "上手公司",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "drwr_nm",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "开票公司",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "ds",
+            "type": "varchar(32)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "数据日期",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 32
+          }
+        ],
+        "primary_keys": [
+          "uuid"
+        ]
+      },
+      "aml_f_wst_alert_cust_drft_record": {
+        "table_name": "aml_f_wst_alert_cust_drft_record",
+        "table_type": "innodb",
+        "columns": [
+          {
+            "name": "uuid",
+            "type": "varchar(64)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "主键",
+            "is_primary_key": true,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "cust_id",
+            "type": "varchar(32)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "客户号",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 32
+          },
+          {
+            "name": "model_key",
+            "type": "varchar(10)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "模型主键",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 10
+          },
+          {
+            "name": "alert_date",
+            "type": "varchar(10)",
+            "nullable": false,
+            "default_value": null,
+            "comment": "预警日期",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 10
+          },
+          {
+            "name": "drft_no",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "票号_子票开始区间_子票结束区间",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "seq_no",
+            "type": "varchar(8)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "历史序号",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 8
+          },
+          {
+            "name": "msg_typ",
+            "type": "varchar(16)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "交易类型",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 16
+          },
+          {
+            "name": "req_nm",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "请求方名称",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "rcv_nm",
+            "type": "varchar(64)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "接收方名称",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 64
+          },
+          {
+            "name": "sgn_up_dt",
+            "type": "varchar(8)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "签收时间",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 8
+          },
+          {
+            "name": "ds",
+            "type": "varchar(32)",
+            "nullable": true,
+            "default_value": null,
+            "comment": "数据日期",
+            "is_primary_key": false,
+            "is_auto_primary_key": false,
+            "max_length": 32
+          }
+        ],
+        "primary_keys": [
+          "uuid"
+        ]
+      }
+    },
+    "table_plans": [
+      {
+        "table_name": "aml_f_tidb_model_result",
+        "primary_keys": [
+          "uuid"
+        ],
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "result_date <= '2020-12-27'",
+          "model_key = 'WSTY001')"
+        ],
+        "row_hint": 3,
+        "column_plans": [
+          {
+            "column_name": "uuid",
+            "source": "generated",
+            "required": true,
+            "suggested_values": [],
+            "rationale": "Primary key should be generated uniquely during insert rendering."
+          },
+          {
+            "column_name": "result_key",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "WSTY0012020-12-20962020122711000002",
+              "WSTY0012020-11-259620220922110010"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "model_key",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "WSTY001"
+            ],
+            "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+          },
+          {
+            "column_name": "model_type",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "BS"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "cust_id",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "962020122711000002"
+            ],
+            "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+          },
+          {
+            "column_name": "result_date",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "2020-12-27"
+            ],
+            "rationale": "Derived from SQL filters: result_date <= '2020-12-27'"
+          },
+          {
+            "column_name": "cust_model_result",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "1"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "model_seq",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "20201220001",
+              "20201125001"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "model_version",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "1.0"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "ds",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "2020-12-20",
+              "2020-11-25"
+            ],
+            "rationale": "Observed in sampled business rows."
+          }
+        ]
+      },
+      {
+        "table_name": "aml_f_wst_alert_cust_trans_info",
+        "primary_keys": [
+          "uuid"
+        ],
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "row_hint": 3,
+        "column_plans": [
+          {
+            "column_name": "uuid",
+            "source": "generated",
+            "required": true,
+            "suggested_values": [],
+            "rationale": "Primary key should be generated uniquely during insert rendering."
+          },
+          {
+            "column_name": "cust_id",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "962020122711000002"
+            ],
+            "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+          },
+          {
+            "column_name": "model_key",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "WSTY001"
+            ],
+            "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+          },
+          {
+            "column_name": "alert_date",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "2020-12-20"
+            ],
+            "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+          },
+          {
+            "column_name": "transactionkey",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "2012100170247697657UC0FIQKKIU6TD-1",
+              "2012100170247697657UC0FIQKKIU6TD-2",
+              "2012100170247697657UC0FIQKKIU6TD-13"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "trans_time",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "2020-11-26 09:48:54",
+              "2020-11-26 09:47:54",
+              "2020-11-26 10:45:54"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "cust_name",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "辽宁麒麟湾体育公司"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "receive_pay_cd",
+            "source": "dictionary",
+            "required": false,
+            "suggested_values": [
+              "01",
+              "02"
+            ],
+            "rationale": "Resolved from import/system dictionary mapping."
+          },
+          {
+            "column_name": "trans_amount",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "129876.4000",
+              "98765.4300"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "drft_no",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "510355201611120250722102158993_000009189488_0000093478",
+              "510355201611120250722102158993_000009189488_0000093479"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "last_req_nm",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "深圳纸杯伈制造技忄有彡公司",
+              "北京天安科技公司"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "drwr_nm",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "深圳纸杯誋制造技忄有彡公司",
+              "上海浦东发展公司"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "ds",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "2020-12-20"
+            ],
+            "rationale": "Observed in sampled business rows."
+          }
+        ]
+      },
+      {
+        "table_name": "aml_f_wst_alert_cust_drft_record",
+        "primary_keys": [
+          "uuid"
+        ],
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "row_hint": 3,
+        "column_plans": [
+          {
+            "column_name": "uuid",
+            "source": "generated",
+            "required": true,
+            "suggested_values": [],
+            "rationale": "Primary key should be generated uniquely during insert rendering."
+          },
+          {
+            "column_name": "cust_id",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "962020122711000002"
+            ],
+            "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+          },
+          {
+            "column_name": "model_key",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "WSTY001"
+            ],
+            "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+          },
+          {
+            "column_name": "alert_date",
+            "source": "condition",
+            "required": true,
+            "suggested_values": [
+              "2020-12-20"
+            ],
+            "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+          },
+          {
+            "column_name": "drft_no",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "510355201611120250722102158993_000009189488_0000093478"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "seq_no",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "8",
+              "7",
+              "10"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "msg_typ",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "背书"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "req_nm",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "辽宁屿东城体育公司",
+              "大连上自称有限公司",
+              "北京天安科技公司"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "rcv_nm",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "辽宁麒麟湾体育公司",
+              "辽宁屿东城体育公司",
+              "上海浦东发展公司"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "sgn_up_dt",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "20200724",
+              "20200721",
+              "20200725"
+            ],
+            "rationale": "Observed in sampled business rows."
+          },
+          {
+            "column_name": "ds",
+            "source": "sample",
+            "required": false,
+            "suggested_values": [
+              "2020-12-20"
+            ],
+            "rationale": "Observed in sampled business rows."
+          }
+        ]
+      }
+    ],
+    "sample_rows_by_table": {
+      "aml_f_tidb_model_result": [
+        {
+          "uuid": "01A819A45584B9957A0C8751CCD6B163",
+          "result_key": "WSTY0012020-12-20962020122711000002",
+          "model_key": "WSTY001",
+          "model_type": "BS",
+          "cust_id": "962020122711000002",
+          "result_date": "2020-12-20",
+          "cust_model_result": "1",
+          "model_seq": "20201220001",
+          "model_version": "1.0",
+          "ds": "2020-12-20"
+        },
+        {
+          "uuid": "02A819A45584B9957A0C8751CCD6B164",
+          "result_key": "WSTY0012020-11-259620220922110010",
+          "model_key": "WSTY001",
+          "model_type": "BS",
+          "cust_id": "962020122711000002",
+          "result_date": "2020-11-25",
+          "cust_model_result": "1",
+          "model_seq": "20201125001",
+          "model_version": "1.0",
+          "ds": "2020-11-25"
+        },
+        {
+          "uuid": "AMLFTIDB_F81C34_001",
+          "result_key": "WSTY0012020-12-20962020122711000002",
+          "model_key": "WSTY001",
+          "model_type": "BS",
+          "cust_id": "962020122711000002",
+          "result_date": "2020-12-27",
+          "cust_model_result": "1",
+          "model_seq": "20201220001",
+          "model_version": "1.0",
+          "ds": "2020-12-20"
+        }
+      ],
+      "aml_f_wst_alert_cust_trans_info": [
+        {
+          "uuid": "10K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5",
+          "cust_id": "962020122711000002",
+          "model_key": "WSTY001",
+          "alert_date": "2020-12-20",
+          "transactionkey": "2012100170247697657UC0FIQKKIU6TD-1",
+          "trans_time": "2020-11-26 09:48:54",
+          "cust_name": "辽宁麒麟湾体育公司",
+          "receive_pay_cd": "收",
+          "trans_amount": "129876.4000",
+          "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+          "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+          "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+          "ds": "2020-12-20"
+        },
+        {
+          "uuid": "11K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5",
+          "cust_id": "962020122711000002",
+          "model_key": "WSTY001",
+          "alert_date": "2020-12-20",
+          "transactionkey": "2012100170247697657UC0FIQKKIU6TD-2",
+          "trans_time": "2020-11-26 09:47:54",
+          "cust_name": "辽宁麒麟湾体育公司",
+          "receive_pay_cd": "付",
+          "trans_amount": "129876.4000",
+          "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+          "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+          "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+          "ds": "2020-12-20"
+        },
+        {
+          "uuid": "31K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5",
+          "cust_id": "962020122711000002",
+          "model_key": "WSTY001",
+          "alert_date": "2020-12-20",
+          "transactionkey": "2012100170247697657UC0FIQKKIU6TD-13",
+          "trans_time": "2020-11-26 10:45:54",
+          "cust_name": "辽宁麒麟湾体育公司",
+          "receive_pay_cd": "付",
+          "trans_amount": "98765.4300",
+          "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+          "last_req_nm": "北京天安科技公司",
+          "drwr_nm": "上海浦东发展公司",
+          "ds": "2020-12-20"
+        }
+      ],
+      "aml_f_wst_alert_cust_drft_record": [
+        {
+          "uuid": "026BB52c09A87Sc108D9D32C3D1D242",
+          "cust_id": "962020122711000002",
+          "model_key": "WSTY001",
+          "alert_date": "2020-12-20",
+          "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+          "seq_no": "8",
+          "msg_typ": "背书",
+          "req_nm": "辽宁屿东城体育公司",
+          "rcv_nm": "辽宁麒麟湾体育公司",
+          "sgn_up_dt": "20200724",
+          "ds": "2020-12-20"
+        },
+        {
+          "uuid": "116BB52c09A87Sc108D9D32C3D1D242",
+          "cust_id": "962020122711000002",
+          "model_key": "WSTY001",
+          "alert_date": "2020-12-20",
+          "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+          "seq_no": "7",
+          "msg_typ": "背书",
+          "req_nm": "大连上自称有限公司",
+          "rcv_nm": "辽宁屿东城体育公司",
+          "sgn_up_dt": "20200721",
+          "ds": "2020-12-20"
+        },
+        {
+          "uuid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6",
+          "cust_id": "962020122711000002",
+          "model_key": "WSTY001",
+          "alert_date": "2020-12-20",
+          "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+          "seq_no": "10",
+          "msg_typ": "背书",
+          "req_nm": "北京天安科技公司",
+          "rcv_nm": "上海浦东发展公司",
+          "sgn_up_dt": "20200725",
+          "ds": "2020-12-20"
+        }
+      ]
+    },
+    "local_fields_by_table": {
+      "aml_f_tidb_model_result": [
+        "cust_id",
+        "model_seq"
+      ],
+      "aml_f_wst_alert_cust_trans_info": [
+        "cust_id",
+        "receive_pay_cd",
+        "transactionkey"
+      ],
+      "aml_f_wst_alert_cust_drft_record": [
+        "cust_id"
+      ]
+    },
+    "fixed_values": [],
+    "dependent_fixed_values": [],
+    "local_reference_scenarios": [
+      {
+        "id": "custTransInfo:baseline",
+        "title": "custTransInfo baseline replay",
+        "api_name": "custTransInfo",
+        "api_path": "/wst/custTransInfo",
+        "objective": "回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+        "request_inputs": {
+          "pageSize": "10",
+          "pageNum": "1",
+          "custId": "962020122711000002",
+          "caseDate": "2020-12-27",
+          "modelNo": "WSTY001"
+        },
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "result_date <= '2020-12-27'",
+          "model_key = 'WSTY001')",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "assertions": [
+          "业务链路应命中表: aml_f_tidb_model_result, aml_f_wst_alert_cust_trans_info",
+          "核心过滤条件应保持一致: (cust_id = '962020122711000002'; result_date <= '2020-12-27'; model_key = 'WSTY001'); model_key = 'WSTY001'; alert_date = '2020-12-20')",
+          "至少一张业务表应能采到用于回放的样本数据。"
+        ],
+        "tables": [
+          "aml_f_tidb_model_result",
+          "aml_f_wst_alert_cust_trans_info"
+        ],
+        "table_requirements": {
+          "aml_f_tidb_model_result": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+          "aml_f_wst_alert_cust_trans_info": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。"
+        },
+        "generation_source": "local"
+      },
+      {
+        "id": "custTransInfo:pagination",
+        "title": "custTransInfo pagination stability",
+        "api_name": "custTransInfo",
+        "api_path": "/wst/custTransInfo",
+        "objective": "在不改变业务过滤条件的前提下验证分页参数变化。",
+        "request_inputs": {
+          "pageSize": "10",
+          "pageNum": "1"
+        },
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "result_date <= '2020-12-27'",
+          "model_key = 'WSTY001')",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "assertions": [
+          "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
+          "分页前后命中的业务表不应变化。"
+        ],
+        "tables": [
+          "aml_f_tidb_model_result",
+          "aml_f_wst_alert_cust_trans_info"
+        ],
+        "table_requirements": {
+          "aml_f_tidb_model_result": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+          "aml_f_wst_alert_cust_trans_info": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。"
+        },
+        "generation_source": "local"
+      },
+      {
+        "id": "custTransInfo:dictionary",
+        "title": "custTransInfo dictionary consistency",
+        "api_name": "custTransInfo",
+        "api_path": "/wst/custTransInfo",
+        "objective": "验证码值字段只落在允许的字典候选集合中。",
+        "request_inputs": {
+          "pageSize": "10",
+          "pageNum": "1",
+          "custId": "962020122711000002",
+          "caseDate": "2020-12-27",
+          "modelNo": "WSTY001"
+        },
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "result_date <= '2020-12-27'",
+          "model_key = 'WSTY001')",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "assertions": [
+          "receive_pay_cd must use one of 01, 02"
+        ],
+        "tables": [
+          "aml_f_tidb_model_result",
+          "aml_f_wst_alert_cust_trans_info"
+        ],
+        "table_requirements": {
+          "aml_f_tidb_model_result": "字典字段应落在允许的码值集合中，同时保持跨表条件一致。",
+          "aml_f_wst_alert_cust_trans_info": "字典字段应落在允许的码值集合中，同时保持跨表条件一致。"
+        },
+        "generation_source": "local"
+      },
+      {
+        "id": "custDrftRecord:baseline",
+        "title": "custDrftRecord baseline replay",
+        "api_name": "custDrftRecord",
+        "api_path": "/wst/custDrftRecord",
+        "objective": "回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+        "request_inputs": {
+          "pageSize": "10",
+          "pageNum": "1",
+          "custId": "962020122711000002",
+          "caseDate": "2020-12-27",
+          "modelNo": "WSTY001"
+        },
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "result_date <= '2020-12-27'",
+          "model_key = 'WSTY001')",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "assertions": [
+          "业务链路应命中表: aml_f_tidb_model_result, aml_f_wst_alert_cust_drft_record",
+          "核心过滤条件应保持一致: (cust_id = '962020122711000002'; result_date <= '2020-12-27'; model_key = 'WSTY001'); model_key = 'WSTY001'; alert_date = '2020-12-20')",
+          "至少一张业务表应能采到用于回放的样本数据。"
+        ],
+        "tables": [
+          "aml_f_tidb_model_result",
+          "aml_f_wst_alert_cust_drft_record"
+        ],
+        "table_requirements": {
+          "aml_f_tidb_model_result": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+          "aml_f_wst_alert_cust_drft_record": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。"
+        },
+        "generation_source": "local"
+      },
+      {
+        "id": "custDrftRecord:pagination",
+        "title": "custDrftRecord pagination stability",
+        "api_name": "custDrftRecord",
+        "api_path": "/wst/custDrftRecord",
+        "objective": "在不改变业务过滤条件的前提下验证分页参数变化。",
+        "request_inputs": {
+          "pageSize": "10",
+          "pageNum": "1"
+        },
+        "fixed_conditions": [
+          "(cust_id = '962020122711000002'",
+          "result_date <= '2020-12-27'",
+          "model_key = 'WSTY001')",
+          "model_key = 'WSTY001'",
+          "alert_date = '2020-12-20')"
+        ],
+        "assertions": [
+          "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
+          "分页前后命中的业务表不应变化。"
+        ],
+        "tables": [
+          "aml_f_tidb_model_result",
+          "aml_f_wst_alert_cust_drft_record"
+        ],
+        "table_requirements": {
+          "aml_f_tidb_model_result": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+          "aml_f_wst_alert_cust_drft_record": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。"
+        },
+        "generation_source": "local"
+      }
+    ]
+  }
+}

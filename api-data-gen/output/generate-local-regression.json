@@ -1,0 +1,1878 @@
+{
+  "requirement": {
+    "summary": "希望基于需求描述和接口名和接口对应的SQL查询行为，来生成测试场景和造数。",
+    "constraints": [
+      "由于这是在内网下查询数据库生成的，所以建议在本机的mysql生成新的表，以模拟内网的数据环境。如果需要表结构和样例数据，可以告诉我，",
+      "而目前是在代码中写死的，优先用本地的造数方法去生成，再用AI解析生成。",
+      "【要求】",
+      "任务中每一个功能都很大，建议分步生成markdown落地方案后，分步执行，不要直接写代码"
+    ],
+    "keywords": [
+      "测试场景",
+      "造数",
+      "接口",
+      "SQL",
+      "agent",
+      "skill",
+      "模块化",
+      "LLM"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "custTransInfo:baseline",
+      "title": "custTransInfo baseline replay",
+      "api_name": "custTransInfo",
+      "api_path": "/wst/custTransInfo",
+      "objective": "回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1",
+        "custId": "962020122711000002",
+        "caseDate": "2020-12-27",
+        "modelNo": "WSTY001"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "业务链路应命中表: aml_f_tidb_model_result, aml_f_wst_alert_cust_trans_info",
+        "核心过滤条件应保持一致: (cust_id = '962020122711000002'; result_date <= '2020-12-27'; model_key = 'WSTY001'); model_key = 'WSTY001'; alert_date = '2020-12-20')",
+        "至少一张业务表应能采到用于回放的样本数据。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_trans_info"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+        "aml_f_wst_alert_cust_trans_info": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custTransInfo:pagination",
+      "title": "custTransInfo pagination stability",
+      "api_name": "custTransInfo",
+      "api_path": "/wst/custTransInfo",
+      "objective": "在不改变业务过滤条件的前提下验证分页参数变化。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
+        "分页前后命中的业务表不应变化。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_trans_info"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+        "aml_f_wst_alert_cust_trans_info": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custTransInfo:dictionary",
+      "title": "custTransInfo dictionary consistency",
+      "api_name": "custTransInfo",
+      "api_path": "/wst/custTransInfo",
+      "objective": "验证码值字段只落在允许的字典候选集合中。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1",
+        "custId": "962020122711000002",
+        "caseDate": "2020-12-27",
+        "modelNo": "WSTY001"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "receive_pay_cd must use one of 01, 02"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_trans_info"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "字典字段应落在允许的码值集合中，同时保持跨表条件一致。",
+        "aml_f_wst_alert_cust_trans_info": "字典字段应落在允许的码值集合中，同时保持跨表条件一致。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custDrftRecord:baseline",
+      "title": "custDrftRecord baseline replay",
+      "api_name": "custDrftRecord",
+      "api_path": "/wst/custDrftRecord",
+      "objective": "回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1",
+        "custId": "962020122711000002",
+        "caseDate": "2020-12-27",
+        "modelNo": "WSTY001"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "业务链路应命中表: aml_f_tidb_model_result, aml_f_wst_alert_cust_drft_record",
+        "核心过滤条件应保持一致: (cust_id = '962020122711000002'; result_date <= '2020-12-27'; model_key = 'WSTY001'); model_key = 'WSTY001'; alert_date = '2020-12-20')",
+        "至少一张业务表应能采到用于回放的样本数据。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_drft_record"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+        "aml_f_wst_alert_cust_drft_record": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custDrftRecord:pagination",
+      "title": "custDrftRecord pagination stability",
+      "api_name": "custDrftRecord",
+      "api_path": "/wst/custDrftRecord",
+      "objective": "在不改变业务过滤条件的前提下验证分页参数变化。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
+        "分页前后命中的业务表不应变化。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_drft_record"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+        "aml_f_wst_alert_cust_drft_record": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。"
+      },
+      "generation_source": "local"
+    }
+  ],
+  "table_plans": [
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "result_key",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "WSTY0012020-12-20962020122711000002",
+            "WSTY0012020-11-259620220922110010"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "model_type",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "BS"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "result_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-27"
+          ],
+          "rationale": "Derived from SQL filters: result_date <= '2020-12-27'"
+        },
+        {
+          "column_name": "cust_model_result",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "1"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_seq",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "20201220001",
+            "20201125001"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_version",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "1.0"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20",
+            "2020-11-25"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_trans_info",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "alert_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+        },
+        {
+          "column_name": "transactionkey",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2012100170247697657UC0FIQKKIU6TD-1",
+            "2012100170247697657UC0FIQKKIU6TD-2",
+            "2012100170247697657UC0FIQKKIU6TD-13"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "trans_time",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-11-26 09:48:54",
+            "2020-11-26 09:47:54",
+            "2020-11-26 10:45:54"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "cust_name",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁麒麟湾体育公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "receive_pay_cd",
+          "source": "dictionary",
+          "required": false,
+          "suggested_values": [
+            "01",
+            "02"
+          ],
+          "rationale": "Resolved from import/system dictionary mapping."
+        },
+        {
+          "column_name": "trans_amount",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "129876.4000",
+            "98765.4300"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "drft_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "510355201611120250722102158993_000009189488_0000093478",
+            "510355201611120250722102158993_000009189488_0000093479"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "last_req_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "深圳纸杯伈制造技忄有彡公司",
+            "北京天安科技公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "drwr_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "深圳纸杯誋制造技忄有彡公司",
+            "上海浦东发展公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_drft_record",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "alert_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+        },
+        {
+          "column_name": "drft_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "510355201611120250722102158993_000009189488_0000093478"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "seq_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "8",
+            "7",
+            "10"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "msg_typ",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "背书"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "req_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁屿东城体育公司",
+            "大连上自称有限公司",
+            "北京天安科技公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "rcv_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁麒麟湾体育公司",
+            "辽宁屿东城体育公司",
+            "上海浦东发展公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "sgn_up_dt",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "20200724",
+            "20200721",
+            "20200725"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    }
+  ],
+  "generated_tables": [
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFTIDB_2FA35C_001",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_2FA35C_002",
+            "result_key": "WSTY0012020-11-259620220922110010",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_2FA35C_003",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_2FA35C_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_2FA35C_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_2FA35C_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+      ],
+      "scenario_id": "custTransInfo:baseline",
+      "scenario_title": "custTransInfo baseline replay"
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_trans_info",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFWSTA_2FA35C_001",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006003532899996",
+            "trans_time": "2020-11-26 09:48:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "01",
+            "trans_amount": "129876.4000",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+            "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_2FA35C_002",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006006507299996",
+            "trans_time": "2020-11-26 09:47:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "02",
+            "trans_amount": "98765.4300",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+            "last_req_nm": "北京天安科技公司",
+            "drwr_nm": "上海浦东发展公司",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_2FA35C_003",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006007674699996",
+            "trans_time": "2020-11-26 10:45:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "01",
+            "trans_amount": "129876.4000",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+            "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_wst_alert_cust_trans_info` (`uuid`, `cust_id`, `model_key`, `alert_date`, `transactionkey`, `trans_time`, `cust_name`, `receive_pay_cd`, `trans_amount`, `drft_no`, `last_req_nm`, `drwr_nm`, `ds`) VALUES\n  ('AMLFWSTA_2FA35C_001', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006003532899996', '2020-11-26 09:48:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20'),\n  ('AMLFWSTA_2FA35C_002', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006006507299996', '2020-11-26 09:47:54', '辽宁麒麟湾体育公司', '02', 98765.4300, '510355201611120250722102158993_000009189488_0000093479', '北京天安科技公司', '上海浦东发展公司', '2020-12-20'),\n  ('AMLFWSTA_2FA35C_003', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006007674699996', '2020-11-26 10:45:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20');"
+      ],
+      "scenario_id": "custTransInfo:baseline",
+      "scenario_title": "custTransInfo baseline replay"
+    },
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFTIDB_4091D4_001",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_4091D4_002",
+            "result_key": "WSTY0012020-11-259620220922110010",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_4091D4_003",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_4091D4_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_4091D4_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_4091D4_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+      ],
+      "scenario_id": "custTransInfo:pagination",
+      "scenario_title": "custTransInfo pagination stability"
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_trans_info",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFWSTA_4091D4_001",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006009976299996",
+            "trans_time": "2020-11-26 09:48:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "01",
+            "trans_amount": "129876.4000",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+            "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_4091D4_002",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006004644599996",
+            "trans_time": "2020-11-26 09:47:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "02",
+            "trans_amount": "98765.4300",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+            "last_req_nm": "北京天安科技公司",
+            "drwr_nm": "上海浦东发展公司",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_4091D4_003",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006002334999996",
+            "trans_time": "2020-11-26 10:45:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "01",
+            "trans_amount": "129876.4000",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+            "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_wst_alert_cust_trans_info` (`uuid`, `cust_id`, `model_key`, `alert_date`, `transactionkey`, `trans_time`, `cust_name`, `receive_pay_cd`, `trans_amount`, `drft_no`, `last_req_nm`, `drwr_nm`, `ds`) VALUES\n  ('AMLFWSTA_4091D4_001', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006009976299996', '2020-11-26 09:48:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20'),\n  ('AMLFWSTA_4091D4_002', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006004644599996', '2020-11-26 09:47:54', '辽宁麒麟湾体育公司', '02', 98765.4300, '510355201611120250722102158993_000009189488_0000093479', '北京天安科技公司', '上海浦东发展公司', '2020-12-20'),\n  ('AMLFWSTA_4091D4_003', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006002334999996', '2020-11-26 10:45:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20');"
+      ],
+      "scenario_id": "custTransInfo:pagination",
+      "scenario_title": "custTransInfo pagination stability"
+    },
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFTIDB_0BDF11_001",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_0BDF11_002",
+            "result_key": "WSTY0012020-11-259620220922110010",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_0BDF11_003",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_0BDF11_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_0BDF11_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_0BDF11_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+      ],
+      "scenario_id": "custTransInfo:dictionary",
+      "scenario_title": "custTransInfo dictionary consistency"
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_trans_info",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFWSTA_0BDF11_001",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006006233699996",
+            "trans_time": "2020-11-26 09:48:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "01",
+            "trans_amount": "129876.4000",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+            "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_0BDF11_002",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006003909299996",
+            "trans_time": "2020-11-26 09:47:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "02",
+            "trans_amount": "98765.4300",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+            "last_req_nm": "北京天安科技公司",
+            "drwr_nm": "上海浦东发展公司",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_0BDF11_003",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "transactionkey": "6008C20260302000006006924899996",
+            "trans_time": "2020-11-26 10:45:54",
+            "cust_name": "辽宁麒麟湾体育公司",
+            "receive_pay_cd": "01",
+            "trans_amount": "129876.4000",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+            "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_wst_alert_cust_trans_info` (`uuid`, `cust_id`, `model_key`, `alert_date`, `transactionkey`, `trans_time`, `cust_name`, `receive_pay_cd`, `trans_amount`, `drft_no`, `last_req_nm`, `drwr_nm`, `ds`) VALUES\n  ('AMLFWSTA_0BDF11_001', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006006233699996', '2020-11-26 09:48:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20'),\n  ('AMLFWSTA_0BDF11_002', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006003909299996', '2020-11-26 09:47:54', '辽宁麒麟湾体育公司', '02', 98765.4300, '510355201611120250722102158993_000009189488_0000093479', '北京天安科技公司', '上海浦东发展公司', '2020-12-20'),\n  ('AMLFWSTA_0BDF11_003', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006006924899996', '2020-11-26 10:45:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20');"
+      ],
+      "scenario_id": "custTransInfo:dictionary",
+      "scenario_title": "custTransInfo dictionary consistency"
+    },
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFTIDB_8FFD43_001",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_8FFD43_002",
+            "result_key": "WSTY0012020-11-259620220922110010",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_8FFD43_003",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_8FFD43_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_8FFD43_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_8FFD43_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+      ],
+      "scenario_id": "custDrftRecord:baseline",
+      "scenario_title": "custDrftRecord baseline replay"
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_drft_record",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFWSTA_8FFD43_001",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "seq_no": "8",
+            "msg_typ": "背书",
+            "req_nm": "辽宁屿东城体育公司",
+            "rcv_nm": "辽宁麒麟湾体育公司",
+            "sgn_up_dt": "20200724",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_8FFD43_002",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "seq_no": "7",
+            "msg_typ": "背书",
+            "req_nm": "大连上自称有限公司",
+            "rcv_nm": "辽宁屿东城体育公司",
+            "sgn_up_dt": "20200721",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_8FFD43_003",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "seq_no": "10",
+            "msg_typ": "背书",
+            "req_nm": "北京天安科技公司",
+            "rcv_nm": "上海浦东发展公司",
+            "sgn_up_dt": "20200725",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_wst_alert_cust_drft_record` (`uuid`, `cust_id`, `model_key`, `alert_date`, `drft_no`, `seq_no`, `msg_typ`, `req_nm`, `rcv_nm`, `sgn_up_dt`, `ds`) VALUES\n  ('AMLFWSTA_8FFD43_001', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '8', '背书', '辽宁屿东城体育公司', '辽宁麒麟湾体育公司', '20200724', '2020-12-20'),\n  ('AMLFWSTA_8FFD43_002', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '7', '背书', '大连上自称有限公司', '辽宁屿东城体育公司', '20200721', '2020-12-20'),\n  ('AMLFWSTA_8FFD43_003', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '10', '背书', '北京天安科技公司', '上海浦东发展公司', '20200725', '2020-12-20');"
+      ],
+      "scenario_id": "custDrftRecord:baseline",
+      "scenario_title": "custDrftRecord baseline replay"
+    },
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFTIDB_985AF6_001",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_985AF6_002",
+            "result_key": "WSTY0012020-11-259620220922110010",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFTIDB_985AF6_003",
+            "result_key": "WSTY0012020-12-20962020122711000002",
+            "model_key": "WSTY001",
+            "model_type": "BS",
+            "cust_id": "962020122711000002",
+            "result_date": "2020-12-27",
+            "cust_model_result": "1",
+            "model_seq": "",
+            "model_version": "1.0",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_985AF6_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_985AF6_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_985AF6_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+      ],
+      "scenario_id": "custDrftRecord:pagination",
+      "scenario_title": "custDrftRecord pagination stability"
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_drft_record",
+      "row_count": 3,
+      "rows": [
+        {
+          "values": {
+            "uuid": "AMLFWSTA_985AF6_001",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "seq_no": "8",
+            "msg_typ": "背书",
+            "req_nm": "辽宁屿东城体育公司",
+            "rcv_nm": "辽宁麒麟湾体育公司",
+            "sgn_up_dt": "20200724",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_985AF6_002",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "seq_no": "7",
+            "msg_typ": "背书",
+            "req_nm": "大连上自称有限公司",
+            "rcv_nm": "辽宁屿东城体育公司",
+            "sgn_up_dt": "20200721",
+            "ds": "2020-12-20"
+          }
+        },
+        {
+          "values": {
+            "uuid": "AMLFWSTA_985AF6_003",
+            "cust_id": "962020122711000002",
+            "model_key": "WSTY001",
+            "alert_date": "2020-12-20",
+            "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+            "seq_no": "10",
+            "msg_typ": "背书",
+            "req_nm": "北京天安科技公司",
+            "rcv_nm": "上海浦东发展公司",
+            "sgn_up_dt": "20200725",
+            "ds": "2020-12-20"
+          }
+        }
+      ],
+      "insert_sql": [
+        "INSERT INTO `aml_f_wst_alert_cust_drft_record` (`uuid`, `cust_id`, `model_key`, `alert_date`, `drft_no`, `seq_no`, `msg_typ`, `req_nm`, `rcv_nm`, `sgn_up_dt`, `ds`) VALUES\n  ('AMLFWSTA_985AF6_001', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '8', '背书', '辽宁屿东城体育公司', '辽宁麒麟湾体育公司', '20200724', '2020-12-20'),\n  ('AMLFWSTA_985AF6_002', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '7', '背书', '大连上自称有限公司', '辽宁屿东城体育公司', '20200721', '2020-12-20'),\n  ('AMLFWSTA_985AF6_003', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '10', '背书', '北京天安科技公司', '上海浦东发展公司', '20200725', '2020-12-20');"
+      ],
+      "scenario_id": "custDrftRecord:pagination",
+      "scenario_title": "custDrftRecord pagination stability"
+    }
+  ],
+  "scenario_generations": [
+    {
+      "scenario_id": "custTransInfo:baseline",
+      "scenario_title": "custTransInfo baseline replay",
+      "generated_tables": [
+        {
+          "table_name": "aml_f_tidb_model_result",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFTIDB_2FA35C_001",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_2FA35C_002",
+                "result_key": "WSTY0012020-11-259620220922110010",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_2FA35C_003",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_2FA35C_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_2FA35C_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_2FA35C_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+          ],
+          "scenario_id": "custTransInfo:baseline",
+          "scenario_title": "custTransInfo baseline replay"
+        },
+        {
+          "table_name": "aml_f_wst_alert_cust_trans_info",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFWSTA_2FA35C_001",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006003532899996",
+                "trans_time": "2020-11-26 09:48:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "01",
+                "trans_amount": "129876.4000",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+                "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_2FA35C_002",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006006507299996",
+                "trans_time": "2020-11-26 09:47:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "02",
+                "trans_amount": "98765.4300",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+                "last_req_nm": "北京天安科技公司",
+                "drwr_nm": "上海浦东发展公司",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_2FA35C_003",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006007674699996",
+                "trans_time": "2020-11-26 10:45:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "01",
+                "trans_amount": "129876.4000",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+                "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_wst_alert_cust_trans_info` (`uuid`, `cust_id`, `model_key`, `alert_date`, `transactionkey`, `trans_time`, `cust_name`, `receive_pay_cd`, `trans_amount`, `drft_no`, `last_req_nm`, `drwr_nm`, `ds`) VALUES\n  ('AMLFWSTA_2FA35C_001', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006003532899996', '2020-11-26 09:48:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20'),\n  ('AMLFWSTA_2FA35C_002', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006006507299996', '2020-11-26 09:47:54', '辽宁麒麟湾体育公司', '02', 98765.4300, '510355201611120250722102158993_000009189488_0000093479', '北京天安科技公司', '上海浦东发展公司', '2020-12-20'),\n  ('AMLFWSTA_2FA35C_003', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006007674699996', '2020-11-26 10:45:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20');"
+          ],
+          "scenario_id": "custTransInfo:baseline",
+          "scenario_title": "custTransInfo baseline replay"
+        }
+      ],
+      "validation_checks": [
+        {
+          "name": "custTransInfo:baseline:cross_table:cust_id",
+          "passed": true,
+          "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_trans_info=['962020122711000002']"
+        },
+        {
+          "name": "custTransInfo:baseline:cross_table:model_key",
+          "passed": true,
+          "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_trans_info=['WSTY001']"
+        },
+        {
+          "name": "custTransInfo:baseline:shared_column:ds",
+          "passed": true,
+          "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_trans_info=['2020-12-20']"
+        }
+      ]
+    },
+    {
+      "scenario_id": "custTransInfo:pagination",
+      "scenario_title": "custTransInfo pagination stability",
+      "generated_tables": [
+        {
+          "table_name": "aml_f_tidb_model_result",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFTIDB_4091D4_001",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_4091D4_002",
+                "result_key": "WSTY0012020-11-259620220922110010",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_4091D4_003",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_4091D4_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_4091D4_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_4091D4_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+          ],
+          "scenario_id": "custTransInfo:pagination",
+          "scenario_title": "custTransInfo pagination stability"
+        },
+        {
+          "table_name": "aml_f_wst_alert_cust_trans_info",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFWSTA_4091D4_001",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006009976299996",
+                "trans_time": "2020-11-26 09:48:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "01",
+                "trans_amount": "129876.4000",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+                "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_4091D4_002",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006004644599996",
+                "trans_time": "2020-11-26 09:47:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "02",
+                "trans_amount": "98765.4300",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+                "last_req_nm": "北京天安科技公司",
+                "drwr_nm": "上海浦东发展公司",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_4091D4_003",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006002334999996",
+                "trans_time": "2020-11-26 10:45:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "01",
+                "trans_amount": "129876.4000",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+                "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_wst_alert_cust_trans_info` (`uuid`, `cust_id`, `model_key`, `alert_date`, `transactionkey`, `trans_time`, `cust_name`, `receive_pay_cd`, `trans_amount`, `drft_no`, `last_req_nm`, `drwr_nm`, `ds`) VALUES\n  ('AMLFWSTA_4091D4_001', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006009976299996', '2020-11-26 09:48:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20'),\n  ('AMLFWSTA_4091D4_002', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006004644599996', '2020-11-26 09:47:54', '辽宁麒麟湾体育公司', '02', 98765.4300, '510355201611120250722102158993_000009189488_0000093479', '北京天安科技公司', '上海浦东发展公司', '2020-12-20'),\n  ('AMLFWSTA_4091D4_003', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006002334999996', '2020-11-26 10:45:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20');"
+          ],
+          "scenario_id": "custTransInfo:pagination",
+          "scenario_title": "custTransInfo pagination stability"
+        }
+      ],
+      "validation_checks": [
+        {
+          "name": "custTransInfo:pagination:cross_table:cust_id",
+          "passed": true,
+          "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_trans_info=['962020122711000002']"
+        },
+        {
+          "name": "custTransInfo:pagination:cross_table:model_key",
+          "passed": true,
+          "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_trans_info=['WSTY001']"
+        },
+        {
+          "name": "custTransInfo:pagination:shared_column:ds",
+          "passed": true,
+          "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_trans_info=['2020-12-20']"
+        }
+      ]
+    },
+    {
+      "scenario_id": "custTransInfo:dictionary",
+      "scenario_title": "custTransInfo dictionary consistency",
+      "generated_tables": [
+        {
+          "table_name": "aml_f_tidb_model_result",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFTIDB_0BDF11_001",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_0BDF11_002",
+                "result_key": "WSTY0012020-11-259620220922110010",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_0BDF11_003",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_0BDF11_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_0BDF11_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_0BDF11_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+          ],
+          "scenario_id": "custTransInfo:dictionary",
+          "scenario_title": "custTransInfo dictionary consistency"
+        },
+        {
+          "table_name": "aml_f_wst_alert_cust_trans_info",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFWSTA_0BDF11_001",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006006233699996",
+                "trans_time": "2020-11-26 09:48:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "01",
+                "trans_amount": "129876.4000",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+                "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_0BDF11_002",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006003909299996",
+                "trans_time": "2020-11-26 09:47:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "02",
+                "trans_amount": "98765.4300",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093479",
+                "last_req_nm": "北京天安科技公司",
+                "drwr_nm": "上海浦东发展公司",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_0BDF11_003",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "transactionkey": "6008C20260302000006006924899996",
+                "trans_time": "2020-11-26 10:45:54",
+                "cust_name": "辽宁麒麟湾体育公司",
+                "receive_pay_cd": "01",
+                "trans_amount": "129876.4000",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "last_req_nm": "深圳纸杯伈制造技忄有彡公司",
+                "drwr_nm": "深圳纸杯誋制造技忄有彡公司",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_wst_alert_cust_trans_info` (`uuid`, `cust_id`, `model_key`, `alert_date`, `transactionkey`, `trans_time`, `cust_name`, `receive_pay_cd`, `trans_amount`, `drft_no`, `last_req_nm`, `drwr_nm`, `ds`) VALUES\n  ('AMLFWSTA_0BDF11_001', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006006233699996', '2020-11-26 09:48:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20'),\n  ('AMLFWSTA_0BDF11_002', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006003909299996', '2020-11-26 09:47:54', '辽宁麒麟湾体育公司', '02', 98765.4300, '510355201611120250722102158993_000009189488_0000093479', '北京天安科技公司', '上海浦东发展公司', '2020-12-20'),\n  ('AMLFWSTA_0BDF11_003', '962020122711000002', 'WSTY001', '2020-12-20', '6008C20260302000006006924899996', '2020-11-26 10:45:54', '辽宁麒麟湾体育公司', '01', 129876.4000, '510355201611120250722102158993_000009189488_0000093478', '深圳纸杯伈制造技忄有彡公司', '深圳纸杯誋制造技忄有彡公司', '2020-12-20');"
+          ],
+          "scenario_id": "custTransInfo:dictionary",
+          "scenario_title": "custTransInfo dictionary consistency"
+        }
+      ],
+      "validation_checks": [
+        {
+          "name": "custTransInfo:dictionary:cross_table:cust_id",
+          "passed": true,
+          "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_trans_info=['962020122711000002']"
+        },
+        {
+          "name": "custTransInfo:dictionary:cross_table:model_key",
+          "passed": true,
+          "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_trans_info=['WSTY001']"
+        },
+        {
+          "name": "custTransInfo:dictionary:shared_column:ds",
+          "passed": true,
+          "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_trans_info=['2020-12-20']"
+        }
+      ]
+    },
+    {
+      "scenario_id": "custDrftRecord:baseline",
+      "scenario_title": "custDrftRecord baseline replay",
+      "generated_tables": [
+        {
+          "table_name": "aml_f_tidb_model_result",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFTIDB_8FFD43_001",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_8FFD43_002",
+                "result_key": "WSTY0012020-11-259620220922110010",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_8FFD43_003",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_8FFD43_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_8FFD43_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_8FFD43_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+          ],
+          "scenario_id": "custDrftRecord:baseline",
+          "scenario_title": "custDrftRecord baseline replay"
+        },
+        {
+          "table_name": "aml_f_wst_alert_cust_drft_record",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFWSTA_8FFD43_001",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "seq_no": "8",
+                "msg_typ": "背书",
+                "req_nm": "辽宁屿东城体育公司",
+                "rcv_nm": "辽宁麒麟湾体育公司",
+                "sgn_up_dt": "20200724",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_8FFD43_002",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "seq_no": "7",
+                "msg_typ": "背书",
+                "req_nm": "大连上自称有限公司",
+                "rcv_nm": "辽宁屿东城体育公司",
+                "sgn_up_dt": "20200721",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_8FFD43_003",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "seq_no": "10",
+                "msg_typ": "背书",
+                "req_nm": "北京天安科技公司",
+                "rcv_nm": "上海浦东发展公司",
+                "sgn_up_dt": "20200725",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_wst_alert_cust_drft_record` (`uuid`, `cust_id`, `model_key`, `alert_date`, `drft_no`, `seq_no`, `msg_typ`, `req_nm`, `rcv_nm`, `sgn_up_dt`, `ds`) VALUES\n  ('AMLFWSTA_8FFD43_001', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '8', '背书', '辽宁屿东城体育公司', '辽宁麒麟湾体育公司', '20200724', '2020-12-20'),\n  ('AMLFWSTA_8FFD43_002', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '7', '背书', '大连上自称有限公司', '辽宁屿东城体育公司', '20200721', '2020-12-20'),\n  ('AMLFWSTA_8FFD43_003', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '10', '背书', '北京天安科技公司', '上海浦东发展公司', '20200725', '2020-12-20');"
+          ],
+          "scenario_id": "custDrftRecord:baseline",
+          "scenario_title": "custDrftRecord baseline replay"
+        }
+      ],
+      "validation_checks": [
+        {
+          "name": "custDrftRecord:baseline:cross_table:cust_id",
+          "passed": true,
+          "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_drft_record=['962020122711000002']"
+        },
+        {
+          "name": "custDrftRecord:baseline:cross_table:model_key",
+          "passed": true,
+          "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_drft_record=['WSTY001']"
+        },
+        {
+          "name": "custDrftRecord:baseline:shared_column:ds",
+          "passed": true,
+          "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_drft_record=['2020-12-20']"
+        }
+      ]
+    },
+    {
+      "scenario_id": "custDrftRecord:pagination",
+      "scenario_title": "custDrftRecord pagination stability",
+      "generated_tables": [
+        {
+          "table_name": "aml_f_tidb_model_result",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFTIDB_985AF6_001",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_985AF6_002",
+                "result_key": "WSTY0012020-11-259620220922110010",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFTIDB_985AF6_003",
+                "result_key": "WSTY0012020-12-20962020122711000002",
+                "model_key": "WSTY001",
+                "model_type": "BS",
+                "cust_id": "962020122711000002",
+                "result_date": "2020-12-27",
+                "cust_model_result": "1",
+                "model_seq": "",
+                "model_version": "1.0",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_tidb_model_result` (`uuid`, `result_key`, `model_key`, `model_type`, `cust_id`, `result_date`, `cust_model_result`, `model_seq`, `model_version`, `ds`) VALUES\n  ('AMLFTIDB_985AF6_001', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_985AF6_002', 'WSTY0012020-11-259620220922110010', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20'),\n  ('AMLFTIDB_985AF6_003', 'WSTY0012020-12-20962020122711000002', 'WSTY001', 'BS', '962020122711000002', '2020-12-27', '1', '', '1.0', '2020-12-20');"
+          ],
+          "scenario_id": "custDrftRecord:pagination",
+          "scenario_title": "custDrftRecord pagination stability"
+        },
+        {
+          "table_name": "aml_f_wst_alert_cust_drft_record",
+          "row_count": 3,
+          "rows": [
+            {
+              "values": {
+                "uuid": "AMLFWSTA_985AF6_001",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "seq_no": "8",
+                "msg_typ": "背书",
+                "req_nm": "辽宁屿东城体育公司",
+                "rcv_nm": "辽宁麒麟湾体育公司",
+                "sgn_up_dt": "20200724",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_985AF6_002",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "seq_no": "7",
+                "msg_typ": "背书",
+                "req_nm": "大连上自称有限公司",
+                "rcv_nm": "辽宁屿东城体育公司",
+                "sgn_up_dt": "20200721",
+                "ds": "2020-12-20"
+              }
+            },
+            {
+              "values": {
+                "uuid": "AMLFWSTA_985AF6_003",
+                "cust_id": "962020122711000002",
+                "model_key": "WSTY001",
+                "alert_date": "2020-12-20",
+                "drft_no": "510355201611120250722102158993_000009189488_0000093478",
+                "seq_no": "10",
+                "msg_typ": "背书",
+                "req_nm": "北京天安科技公司",
+                "rcv_nm": "上海浦东发展公司",
+                "sgn_up_dt": "20200725",
+                "ds": "2020-12-20"
+              }
+            }
+          ],
+          "insert_sql": [
+            "INSERT INTO `aml_f_wst_alert_cust_drft_record` (`uuid`, `cust_id`, `model_key`, `alert_date`, `drft_no`, `seq_no`, `msg_typ`, `req_nm`, `rcv_nm`, `sgn_up_dt`, `ds`) VALUES\n  ('AMLFWSTA_985AF6_001', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '8', '背书', '辽宁屿东城体育公司', '辽宁麒麟湾体育公司', '20200724', '2020-12-20'),\n  ('AMLFWSTA_985AF6_002', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '7', '背书', '大连上自称有限公司', '辽宁屿东城体育公司', '20200721', '2020-12-20'),\n  ('AMLFWSTA_985AF6_003', '962020122711000002', 'WSTY001', '2020-12-20', '510355201611120250722102158993_000009189488_0000093478', '10', '背书', '北京天安科技公司', '上海浦东发展公司', '20200725', '2020-12-20');"
+          ],
+          "scenario_id": "custDrftRecord:pagination",
+          "scenario_title": "custDrftRecord pagination stability"
+        }
+      ],
+      "validation_checks": [
+        {
+          "name": "custDrftRecord:pagination:cross_table:cust_id",
+          "passed": true,
+          "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_drft_record=['962020122711000002']"
+        },
+        {
+          "name": "custDrftRecord:pagination:cross_table:model_key",
+          "passed": true,
+          "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_drft_record=['WSTY001']"
+        },
+        {
+          "name": "custDrftRecord:pagination:shared_column:ds",
+          "passed": true,
+          "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_drft_record=['2020-12-20']"
+        }
+      ]
+    }
+  ],
+  "validation_checks": [
+    {
+      "name": "custTransInfo:baseline:cross_table:cust_id",
+      "passed": true,
+      "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_trans_info=['962020122711000002']"
+    },
+    {
+      "name": "custTransInfo:baseline:cross_table:model_key",
+      "passed": true,
+      "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_trans_info=['WSTY001']"
+    },
+    {
+      "name": "custTransInfo:baseline:shared_column:ds",
+      "passed": true,
+      "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_trans_info=['2020-12-20']"
+    },
+    {
+      "name": "custTransInfo:pagination:cross_table:cust_id",
+      "passed": true,
+      "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_trans_info=['962020122711000002']"
+    },
+    {
+      "name": "custTransInfo:pagination:cross_table:model_key",
+      "passed": true,
+      "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_trans_info=['WSTY001']"
+    },
+    {
+      "name": "custTransInfo:pagination:shared_column:ds",
+      "passed": true,
+      "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_trans_info=['2020-12-20']"
+    },
+    {
+      "name": "custTransInfo:dictionary:cross_table:cust_id",
+      "passed": true,
+      "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_trans_info=['962020122711000002']"
+    },
+    {
+      "name": "custTransInfo:dictionary:cross_table:model_key",
+      "passed": true,
+      "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_trans_info=['WSTY001']"
+    },
+    {
+      "name": "custTransInfo:dictionary:shared_column:ds",
+      "passed": true,
+      "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_trans_info=['2020-12-20']"
+    },
+    {
+      "name": "custDrftRecord:baseline:cross_table:cust_id",
+      "passed": true,
+      "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_drft_record=['962020122711000002']"
+    },
+    {
+      "name": "custDrftRecord:baseline:cross_table:model_key",
+      "passed": true,
+      "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_drft_record=['WSTY001']"
+    },
+    {
+      "name": "custDrftRecord:baseline:shared_column:ds",
+      "passed": true,
+      "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_drft_record=['2020-12-20']"
+    },
+    {
+      "name": "custDrftRecord:pagination:cross_table:cust_id",
+      "passed": true,
+      "detail": "cust_id expected 962020122711000002; actual aml_f_tidb_model_result=['962020122711000002']; aml_f_wst_alert_cust_drft_record=['962020122711000002']"
+    },
+    {
+      "name": "custDrftRecord:pagination:cross_table:model_key",
+      "passed": true,
+      "detail": "model_key expected WSTY001; actual aml_f_tidb_model_result=['WSTY001']; aml_f_wst_alert_cust_drft_record=['WSTY001']"
+    },
+    {
+      "name": "custDrftRecord:pagination:shared_column:ds",
+      "passed": true,
+      "detail": "ds shared intersection ['2020-12-20']; actual aml_f_tidb_model_result=['2020-12-20']; aml_f_wst_alert_cust_drft_record=['2020-12-20']"
+    }
+  ],
+  "generation_tag": "",
+  "apply_result": null,
+  "agent_run": null,
+  "agent_bundle": null
+}

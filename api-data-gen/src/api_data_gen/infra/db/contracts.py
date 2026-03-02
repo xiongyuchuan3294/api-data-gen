@@ -12,3 +12,6 @@ class QueryClient(Protocol):
 
     def resolve_table_location(self, table_name: str) -> tuple[str, str]:
         ...
+
+    def execute_statements(self, database: str, statements: list[str]) -> None:
+        ...

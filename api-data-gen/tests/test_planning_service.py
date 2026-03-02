@@ -35,10 +35,10 @@ class _FakeInterfaceTraceService:
                 name=api_name,
                 path=api_path,
                 sql_infos=[
-                    SqlInfo("aml_f_tidb_model_result", ["cust_id = ''962020122711000002''", "model_key = ''WSTY001''"]),
+                    SqlInfo("aml_f_tidb_model_result", ["cust_id = '962020122711000002'", "model_key = 'WSTY001'"]),
                     SqlInfo(
                         "aml_f_wst_alert_cust_trans_info",
-                        ["cust_id = ''962020122711000002''", "alert_date = ''2020-12-20''"],
+                        ["cust_id = '962020122711000002'", "alert_date = '2020-12-20'"],
                     ),
                 ],
             )
@@ -46,10 +46,10 @@ class _FakeInterfaceTraceService:
             name=api_name,
             path=api_path,
             sql_infos=[
-                SqlInfo("aml_f_tidb_model_result", ["cust_id = ''962020122711000002''", "model_key = ''WSTY001''"]),
+                SqlInfo("aml_f_tidb_model_result", ["cust_id = '962020122711000002'", "model_key = 'WSTY001'"]),
                 SqlInfo(
                     "aml_f_wst_alert_cust_drft_record",
-                    ["cust_id = ''962020122711000002''", "alert_date = ''2020-12-20''"],
+                    ["cust_id = '962020122711000002'", "alert_date = '2020-12-20'"],
                 ),
             ],
         )
@@ -123,6 +123,51 @@ class _FakeDictRuleResolver:
         return []
 
 
+class _FakeAiScenarioService:
+    def __init__(self):
+        self.calls: list[dict[str, object]] = []
+
+    def generate(
+        self,
+        requirement_text: str,
+        interface_infos: list[InterfaceInfo],
+        schemas: dict[str, TableSchema],
+        fixed_values: list[str] | None = None,
+        dependent_fixed_values: list[str] | None = None,
+    ):
+        self.calls.append(
+            {
+                "requirement_text": requirement_text,
+                "interface_infos": interface_infos,
+                "schemas": schemas,
+                "fixed_values": fixed_values,
+                "dependent_fixed_values": dependent_fixed_values,
+            }
+        )
+        from api_data_gen.domain.models import ScenarioDraft
+
+        return [
+            ScenarioDraft(
+                id="ai:core_chain:1",
+                title="AI core chain",
+                api_name="multi_api",
+                api_path="",
+                objective="覆盖核心交易链路和跨表一致性。",
+                tables=["aml_f_tidb_model_result", "aml_f_wst_alert_cust_trans_info"],
+                table_requirements={
+                    "aml_f_tidb_model_result": "生成 2 条模型命中记录。",
+                    "aml_f_wst_alert_cust_trans_info": "保证收付标志和金额字段可用。",
+                },
+                generation_source="ai",
+            )
+        ]
+
+
+class _FailingAiScenarioService:
+    def generate(self, *args, **kwargs):
+        raise RuntimeError("ssl verify failed")
+
+
 class PlanningServiceTest(unittest.TestCase):
     def test_build_draft_outputs_scenarios_and_table_plans(self) -> None:
         service = PlanningService(
@@ -152,12 +197,77 @@ class PlanningServiceTest(unittest.TestCase):
         self.assertEqual(3, len(report.table_plans))
         trans_info_plan = next(plan for plan in report.table_plans if plan.table_name == "aml_f_wst_alert_cust_trans_info")
         receive_pay_plan = next(plan for plan in trans_info_plan.column_plans if plan.column_name == "receive_pay_cd")
+        trans_uuid_plan = next(plan for plan in trans_info_plan.column_plans if plan.column_name == "uuid")
+        trans_cust_id_plan = next(plan for plan in trans_info_plan.column_plans if plan.column_name == "cust_id")
         self.assertEqual("dictionary", receive_pay_plan.source)
         self.assertEqual(["01", "02"], receive_pay_plan.suggested_values)
+        self.assertEqual("generated", trans_uuid_plan.source)
+        self.assertEqual("condition", trans_cust_id_plan.source)
+        self.assertEqual(["962020122711000002"], trans_cust_id_plan.suggested_values)
 
         baseline = next(scenario for scenario in report.scenarios if scenario.id == "custTransInfo:baseline")
         self.assertEqual("10", baseline.request_inputs["pageSize"])
-        self.assertIn("cust_id = ''962020122711000002''", baseline.fixed_conditions)
+        self.assertIn("cust_id = '962020122711000002'", baseline.fixed_conditions)
+
+    def test_build_draft_uses_ai_scenarios_when_enabled(self) -> None:
+        ai_scenario_service = _FakeAiScenarioService()
+        service = PlanningService(
+            settings=Settings(),
+            trace_repository=_FakeTraceRepository(),
+            interface_trace_service=_FakeInterfaceTraceService(),
+            schema_service=_FakeSchemaService(),
+            sample_repository=_FakeSampleRepository(),
+            dict_rule_resolver=_FakeDictRuleResolver(),
+            requirement_parser=RequirementParser(),
+            ai_scenario_service=ai_scenario_service,
+        )
+
+        report = service.build_draft(
+            requirement_text="生成覆盖核心链路的测试场景",
+            interfaces=[
+                InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo"),
+                InterfaceTarget(name="custDrftRecord", path="/wst/custDrftRecord"),
+            ],
+            sample_limit=2,
+            fixed_values=["cust_id=962020122711000002"],
+            dependent_fixed_values=["transactionkey 依赖 alert_date"],
+            use_ai_scenarios=True,
+        )
+
+        self.assertEqual(1, len(report.scenarios))
+        self.assertEqual("ai", report.scenarios[0].generation_source)
+        self.assertEqual(
+            "生成 2 条模型命中记录。",
+            report.scenarios[0].table_requirements["aml_f_tidb_model_result"],
+        )
+        self.assertEqual(["cust_id=962020122711000002"], ai_scenario_service.calls[0]["fixed_values"])
+        self.assertEqual(
+            ["transactionkey 依赖 alert_date"],
+            ai_scenario_service.calls[0]["dependent_fixed_values"],
+        )
+        self.assertEqual(3, len(report.table_plans))
+
+    def test_build_draft_raises_when_ai_scenarios_fail(self) -> None:
+        service = PlanningService(
+            settings=Settings(),
+            trace_repository=_FakeTraceRepository(),
+            interface_trace_service=_FakeInterfaceTraceService(),
+            schema_service=_FakeSchemaService(),
+            sample_repository=_FakeSampleRepository(),
+            dict_rule_resolver=_FakeDictRuleResolver(),
+            requirement_parser=RequirementParser(),
+            ai_scenario_service=_FailingAiScenarioService(),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "ssl verify failed"):
+            service.build_draft(
+                requirement_text="生成覆盖核心链路的测试场景",
+                interfaces=[
+                    InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo"),
+                ],
+                sample_limit=2,
+                use_ai_scenarios=True,
+            )
 
 
 if __name__ == "__main__":

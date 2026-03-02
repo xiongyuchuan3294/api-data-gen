@@ -16,7 +16,16 @@ class SqlParser:
         return SqlInfo(
             table_name=self.extract_table_name(sql_text),
             conditions=self.extract_filter_conditions(sql_text),
+            operation=self.extract_operation_type(sql_text),
         )
+
+    @staticmethod
+    def extract_operation_type(sql_text: str) -> str:
+        """Extract SQL operation type (SELECT, INSERT, UPDATE, DELETE)"""
+        match = re.match(r"^\s*(\w+)", sql_text.strip(), re.IGNORECASE)
+        if match:
+            return match.group(1).upper()
+        return "SELECT"
 
     @staticmethod
     def is_count_query(sql_text: str) -> bool:

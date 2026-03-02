@@ -1,0 +1,2 @@
+[console_scripts]
+api-data-gen = api_data_gen.cli.main:main

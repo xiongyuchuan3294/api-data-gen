@@ -249,6 +249,26 @@ CREATE TABLE `field_match_relations` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+INSERT INTO `field_match_relations`
+(`target_table`, `target_field`, `source_table`, `source_field`, `match_reason`, `source_row_count`)
+VALUES
+(
+  'aml_f_wst_alert_cust_trans_info',
+  'last_req_nm',
+  'aml_f_wst_alert_cust_drft_record',
+  'req_nm',
+  'Seeded WST sample mapping: req_nm aligns with last_req_nm by draft chain.',
+  10
+),
+(
+  'aml_f_wst_alert_cust_trans_info',
+  'drwr_nm',
+  'aml_f_wst_alert_cust_drft_record',
+  'rcv_nm',
+  'Seeded WST sample mapping: rcv_nm aligns with drwr_nm by draft chain.',
+  10
+);
+
 CREATE TABLE `t_aml_sys_dict_info` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `sys_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '系统表示',

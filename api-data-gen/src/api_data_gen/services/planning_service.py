@@ -15,7 +15,7 @@ from api_data_gen.domain.models import (
 )
 from api_data_gen.services.requirement_parser import RequirementParser
 
-_CONDITION_RE = re.compile(r"`?([A-Za-z0-9_]+)`?\s*(=|<=|>=|<|>)\s*''([^']*)''")
+_CONDITION_RE = re.compile(r"`?([A-Za-z0-9_]+)`?\s*(=|<=|>=|<|>)\s*'{1,2}([^']*)'{1,2}")
 
 
 class PlanningService:
@@ -28,6 +28,7 @@ class PlanningService:
         sample_repository,
         dict_rule_resolver,
         requirement_parser: RequirementParser,
+        ai_scenario_service=None,
     ):
         self._settings = settings
         self._trace_repository = trace_repository
@@ -36,30 +37,31 @@ class PlanningService:
         self._sample_repository = sample_repository
         self._dict_rule_resolver = dict_rule_resolver
         self._requirement_parser = requirement_parser
+        self._ai_scenario_service = ai_scenario_service
 
     def build_draft(
         self,
         requirement_text: str,
         interfaces: list[InterfaceTarget],
         sample_limit: int = 3,
+        fixed_values: list[str] | None = None,
+        dependent_fixed_values: list[str] | None = None,
+        use_ai_scenarios: bool = False,
     ) -> PlanningDraft:
         requirement = self._requirement_parser.parse(requirement_text)
         interface_infos = [self._interface_trace_service.get_table_info(item.name, item.path) for item in interfaces]
         schemas = self._schema_service.get_all_table_schemas(interface_infos)
         table_samples = {table_name: self._sample_repository.sample_rows(table_name, sample_limit) for table_name in schemas}
 
-        scenarios: list[ScenarioDraft] = []
-        for target, interface_info in zip(interfaces, interface_infos):
-            trace_request = self._trace_repository.find_latest_request(self._build_url_prefix(target.path))
-            request_inputs = _extract_request_inputs(trace_request)
-            scenarios.extend(
-                self._build_interface_scenarios(
-                    target=target,
-                    interface_info=interface_info,
-                    request_inputs=request_inputs,
-                    schemas=schemas,
-                )
-            )
+        scenarios = self._build_scenarios(
+            requirement_text=requirement_text,
+            interfaces=interfaces,
+            interface_infos=interface_infos,
+            schemas=schemas,
+            fixed_values=fixed_values,
+            dependent_fixed_values=dependent_fixed_values,
+            use_ai_scenarios=use_ai_scenarios,
+        )
 
         table_plans = [
             self._build_table_plan(
@@ -77,6 +79,42 @@ class PlanningService:
             scenarios=scenarios,
             table_plans=table_plans,
         )
+
+    def _build_scenarios(
+        self,
+        requirement_text: str,
+        interfaces: list[InterfaceTarget],
+        interface_infos: list[InterfaceInfo],
+        schemas: dict[str, TableSchema],
+        fixed_values: list[str] | None,
+        dependent_fixed_values: list[str] | None,
+        use_ai_scenarios: bool,
+    ) -> list[ScenarioDraft]:
+        if use_ai_scenarios and self._ai_scenario_service is not None:
+            scenarios = self._ai_scenario_service.generate(
+                requirement_text,
+                interface_infos,
+                schemas,
+                fixed_values=fixed_values,
+                dependent_fixed_values=dependent_fixed_values,
+            )
+            if not scenarios:
+                raise ValueError("AI scenario generation returned no scenarios.")
+            return scenarios
+
+        scenarios: list[ScenarioDraft] = []
+        for target, interface_info in zip(interfaces, interface_infos):
+            trace_request = self._trace_repository.find_latest_request(self._build_url_prefix(target.path))
+            request_inputs = _extract_request_inputs(trace_request)
+            scenarios.extend(
+                self._build_interface_scenarios(
+                    target=target,
+                    interface_info=interface_info,
+                    request_inputs=request_inputs,
+                    schemas=schemas,
+                )
+            )
+        return scenarios
 
     def _build_url_prefix(self, api_path: str) -> str:
         return f"{self._settings.system_base_url}{api_path}"
@@ -101,6 +139,10 @@ class PlanningService:
                 fixed_conditions=fixed_conditions,
                 assertions=_build_baseline_assertions(tables, fixed_conditions),
                 tables=tables,
+                table_requirements=_build_local_table_requirements(
+                    tables,
+                    "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+                ),
             )
         ]
 
@@ -119,6 +161,10 @@ class PlanningService:
                         "分页前后命中的业务表不应变化。",
                     ],
                     tables=tables,
+                    table_requirements=_build_local_table_requirements(
+                        tables,
+                        "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+                    ),
                 )
             )
 
@@ -138,6 +184,10 @@ class PlanningService:
                         for column_name, values in dict_columns.items()
                     ],
                     tables=tables,
+                    table_requirements=_build_local_table_requirements(
+                        tables,
+                        "字典字段应落在允许的码值集合中，同时保持跨表条件一致。",
+                    ),
                 )
             )
 
@@ -171,6 +221,18 @@ class PlanningService:
                 )
                 continue
 
+            if column.is_primary_key:
+                column_plans.append(
+                    ColumnPlan(
+                        column_name=column.name,
+                        source="generated",
+                        required=True,
+                        suggested_values=[],
+                        rationale="Primary key should be generated uniquely during insert rendering.",
+                    )
+                )
+                continue
+
             if dict_values:
                 column_plans.append(
                     ColumnPlan(
@@ -191,18 +253,6 @@ class PlanningService:
                         required=not column.nullable,
                         suggested_values=sample_values[column.name][:sample_limit],
                         rationale="Observed in sampled business rows.",
-                    )
-                )
-                continue
-
-            if column.is_primary_key:
-                column_plans.append(
-                    ColumnPlan(
-                        column_name=column.name,
-                        source="generated",
-                        required=True,
-                        suggested_values=[],
-                        rationale="Primary key should be generated uniquely during insert rendering.",
                     )
                 )
                 continue
@@ -311,6 +361,10 @@ def _build_baseline_assertions(tables: list[str], fixed_conditions: list[str]) -
         assertions.append(f"核心过滤条件应保持一致: {'; '.join(fixed_conditions)}")
     assertions.append("至少一张业务表应能采到用于回放的样本数据。")
     return assertions
+
+
+def _build_local_table_requirements(tables: list[str], requirement: str) -> dict[str, str]:
+    return {table_name: requirement for table_name in tables}
 
 
 def _parse_conditions(conditions: list[str]) -> dict[str, list[dict[str, str]]]:

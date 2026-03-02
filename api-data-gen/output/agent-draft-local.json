@@ -1,0 +1,591 @@
+{
+  "requirement": {
+    "summary": "希望基于需求描述和接口名和接口对应的SQL查询行为，来生成测试场景和造数。",
+    "constraints": [
+      "由于这是在内网下查询数据库生成的，所以建议在本机的mysql生成新的表，以模拟内网的数据环境。如果需要表结构和样例数据，可以告诉我，",
+      "而目前是在代码中写死的，优先用本地的造数方法去生成，再用AI解析生成。",
+      "【要求】",
+      "任务中每一个功能都很大，建议分步生成markdown落地方案后，分步执行，不要直接写代码"
+    ],
+    "keywords": [
+      "测试场景",
+      "造数",
+      "接口",
+      "SQL",
+      "agent",
+      "skill",
+      "模块化",
+      "LLM"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "custTransInfo:baseline",
+      "title": "custTransInfo baseline replay",
+      "api_name": "custTransInfo",
+      "api_path": "/wst/custTransInfo",
+      "objective": "回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1",
+        "custId": "962020122711000002",
+        "caseDate": "2020-12-27",
+        "modelNo": "WSTY001"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "业务链路应命中表: aml_f_tidb_model_result, aml_f_wst_alert_cust_trans_info",
+        "核心过滤条件应保持一致: (cust_id = '962020122711000002'; result_date <= '2020-12-27'; model_key = 'WSTY001'); model_key = 'WSTY001'; alert_date = '2020-12-20')",
+        "至少一张业务表应能采到用于回放的样本数据。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_trans_info"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+        "aml_f_wst_alert_cust_trans_info": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custTransInfo:pagination",
+      "title": "custTransInfo pagination stability",
+      "api_name": "custTransInfo",
+      "api_path": "/wst/custTransInfo",
+      "objective": "在不改变业务过滤条件的前提下验证分页参数变化。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
+        "分页前后命中的业务表不应变化。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_trans_info"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+        "aml_f_wst_alert_cust_trans_info": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custTransInfo:dictionary",
+      "title": "custTransInfo dictionary consistency",
+      "api_name": "custTransInfo",
+      "api_path": "/wst/custTransInfo",
+      "objective": "验证码值字段只落在允许的字典候选集合中。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1",
+        "custId": "962020122711000002",
+        "caseDate": "2020-12-27",
+        "modelNo": "WSTY001"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "receive_pay_cd must use one of 01, 02"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_trans_info"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "字典字段应落在允许的码值集合中，同时保持跨表条件一致。",
+        "aml_f_wst_alert_cust_trans_info": "字典字段应落在允许的码值集合中，同时保持跨表条件一致。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custDrftRecord:baseline",
+      "title": "custDrftRecord baseline replay",
+      "api_name": "custDrftRecord",
+      "api_path": "/wst/custDrftRecord",
+      "objective": "回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1",
+        "custId": "962020122711000002",
+        "caseDate": "2020-12-27",
+        "modelNo": "WSTY001"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "业务链路应命中表: aml_f_tidb_model_result, aml_f_wst_alert_cust_drft_record",
+        "核心过滤条件应保持一致: (cust_id = '962020122711000002'; result_date <= '2020-12-27'; model_key = 'WSTY001'); model_key = 'WSTY001'; alert_date = '2020-12-20')",
+        "至少一张业务表应能采到用于回放的样本数据。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_drft_record"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+        "aml_f_wst_alert_cust_drft_record": "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。"
+      },
+      "generation_source": "local"
+    },
+    {
+      "id": "custDrftRecord:pagination",
+      "title": "custDrftRecord pagination stability",
+      "api_name": "custDrftRecord",
+      "api_path": "/wst/custDrftRecord",
+      "objective": "在不改变业务过滤条件的前提下验证分页参数变化。",
+      "request_inputs": {
+        "pageSize": "10",
+        "pageNum": "1"
+      },
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "assertions": [
+        "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
+        "分页前后命中的业务表不应变化。"
+      ],
+      "tables": [
+        "aml_f_tidb_model_result",
+        "aml_f_wst_alert_cust_drft_record"
+      ],
+      "table_requirements": {
+        "aml_f_tidb_model_result": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+        "aml_f_wst_alert_cust_drft_record": "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。"
+      },
+      "generation_source": "local"
+    }
+  ],
+  "table_plans": [
+    {
+      "table_name": "aml_f_tidb_model_result",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "result_date <= '2020-12-27'",
+        "model_key = 'WSTY001')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "result_key",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "WSTY0012020-12-20962020122711000002",
+            "WSTY0012020-11-259620220922110010"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "model_type",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "BS"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "result_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-27"
+          ],
+          "rationale": "Derived from SQL filters: result_date <= '2020-12-27'"
+        },
+        {
+          "column_name": "cust_model_result",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "1"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_seq",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "20201220001",
+            "20201125001"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "model_version",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "1.0"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20",
+            "2020-11-25"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_trans_info",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "alert_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+        },
+        {
+          "column_name": "transactionkey",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2012100170247697657UC0FIQKKIU6TD-1",
+            "2012100170247697657UC0FIQKKIU6TD-2",
+            "2012100170247697657UC0FIQKKIU6TD-13"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "trans_time",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-11-26 09:48:54",
+            "2020-11-26 09:47:54",
+            "2020-11-26 10:45:54"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "cust_name",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁麒麟湾体育公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "receive_pay_cd",
+          "source": "dictionary",
+          "required": false,
+          "suggested_values": [
+            "01",
+            "02"
+          ],
+          "rationale": "Resolved from import/system dictionary mapping."
+        },
+        {
+          "column_name": "trans_amount",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "129876.4000",
+            "98765.4300"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "drft_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "510355201611120250722102158993_000009189488_0000093478",
+            "510355201611120250722102158993_000009189488_0000093479"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "last_req_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "深圳纸杯伈制造技忄有彡公司",
+            "北京天安科技公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "drwr_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "深圳纸杯誋制造技忄有彡公司",
+            "上海浦东发展公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    },
+    {
+      "table_name": "aml_f_wst_alert_cust_drft_record",
+      "primary_keys": [
+        "uuid"
+      ],
+      "fixed_conditions": [
+        "(cust_id = '962020122711000002'",
+        "model_key = 'WSTY001'",
+        "alert_date = '2020-12-20')"
+      ],
+      "row_hint": 3,
+      "column_plans": [
+        {
+          "column_name": "uuid",
+          "source": "generated",
+          "required": true,
+          "suggested_values": [],
+          "rationale": "Primary key should be generated uniquely during insert rendering."
+        },
+        {
+          "column_name": "cust_id",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "962020122711000002"
+          ],
+          "rationale": "Derived from SQL filters: cust_id = '962020122711000002'"
+        },
+        {
+          "column_name": "model_key",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "WSTY001"
+          ],
+          "rationale": "Derived from SQL filters: model_key = 'WSTY001'"
+        },
+        {
+          "column_name": "alert_date",
+          "source": "condition",
+          "required": true,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Derived from SQL filters: alert_date = '2020-12-20'"
+        },
+        {
+          "column_name": "drft_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "510355201611120250722102158993_000009189488_0000093478"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "seq_no",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "8",
+            "7",
+            "10"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "msg_typ",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "背书"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "req_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁屿东城体育公司",
+            "大连上自称有限公司",
+            "北京天安科技公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "rcv_nm",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "辽宁麒麟湾体育公司",
+            "辽宁屿东城体育公司",
+            "上海浦东发展公司"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "sgn_up_dt",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "20200724",
+            "20200721",
+            "20200725"
+          ],
+          "rationale": "Observed in sampled business rows."
+        },
+        {
+          "column_name": "ds",
+          "source": "sample",
+          "required": false,
+          "suggested_values": [
+            "2020-12-20"
+          ],
+          "rationale": "Observed in sampled business rows."
+        }
+      ]
+    }
+  ],
+  "agent_run": {
+    "decision": {
+      "mode": "local",
+      "operation": "draft",
+      "scenario_strategy": "local",
+      "data_strategy": "local_only",
+      "selected_skills": [
+        "extract_interface_sql",
+        "load_table_schema",
+        "resolve_local_generators",
+        "generate_scenarios_local"
+      ],
+      "reasoning": [
+        "AI routing unavailable, fallback to local strategy."
+      ]
+    },
+    "executed_skills": [
+      {
+        "skill_name": "extract_interface_sql",
+        "status": "completed",
+        "summary": "2 interfaces, 4 SQL statements"
+      },
+      {
+        "skill_name": "load_table_schema",
+        "status": "completed",
+        "summary": "3 tables"
+      },
+      {
+        "skill_name": "resolve_local_generators",
+        "status": "completed",
+        "summary": "aml_f_tidb_model_result=2, aml_f_wst_alert_cust_trans_info=3, aml_f_wst_alert_cust_drft_record=1"
+      },
+      {
+        "skill_name": "generate_scenarios_local",
+        "status": "completed",
+        "summary": "5 scenarios"
+      }
+    ]
+  }
+}

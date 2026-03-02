@@ -410,6 +410,15 @@ api_data_gen/
 
 - 模型或调用方可以按场景选择造数策略，而不是走固定流程
 
+当前状态：
+
+- Phase 5 bootstrap 已落地到 Python 项目
+- `draft` / `generate` 默认走 `--strategy-mode agent`
+- 当前 agent 只负责收集本地上下文、skill 定义和 prompt 规范，不在项目内部直接调模型
+- 外部模型需要读取 `agent_bundle` 后自行决定场景和测试数据
+- 本地准备过程和执行轨迹会落到输出中的 `agent_run`
+- `local` / `direct` 模式仍保留，便于回归和兼容旧链路
+
 ## 10. 下一阶段需要你提供的输入
 
 为了进入 Phase 1，你需要提供以下最小输入：
@@ -454,4 +463,3 @@ api_data_gen/
    - 最小数据集设计
    - Python 模块拆分草图
 3. Phase 1 文档确认后，再进入第一批 Python 脚手架实现。
-

@@ -53,6 +53,39 @@ class SchemaRepository:
             primary_keys=primary_keys,
         )
 
+    def list_tables(self, schema_names: list[str]) -> list[str]:
+        if not schema_names:
+            return []
+
+        placeholders = ", ".join(["%s"] * len(schema_names))
+        query = f"""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema IN ({placeholders})
+            ORDER BY table_schema, table_name
+        """
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for row in self._client.fetch_all(query, tuple(schema_names)):
+            table_name = str(row["table_name"])
+            if table_name in seen:
+                continue
+            seen.add(table_name)
+            ordered.append(table_name)
+        return ordered
+
+    def get_row_counts(self, table_names: list[str]) -> dict[str, int]:
+        row_counts: dict[str, int] = {}
+        for table_name in table_names:
+            schema_name, local_name = self._client.resolve_table_location(table_name)
+            query = (
+                f"SELECT COUNT(1) AS cnt FROM "
+                f"{quote_identifier(schema_name)}.{quote_identifier(local_name)}"
+            )
+            row = self._client.fetch_one(query)
+            row_counts[table_name] = int((row or {}).get("cnt") or 0)
+        return row_counts
+
 
 def _extract_max_length(data_type: str) -> int:
     match = _LENGTH_RE.search(data_type)
