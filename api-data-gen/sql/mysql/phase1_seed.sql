@@ -1,6 +1,54 @@
 -- Phase 1 local MySQL bootstrap
 -- MySQL 8.x recommended
 
+
+CREATE TABLE `reusable_field_strategies` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `table_name` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `field_name` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `executor` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `generator` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `params_json` text COLLATE utf8mb4_unicode_ci,
+  `fallback_generators_json` text COLLATE utf8mb4_unicode_ci,
+  `rationale` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `implementation_hint` text COLLATE utf8mb4_unicode_ci,
+  `implementation_code` mediumtext COLLATE utf8mb4_unicode_ci,
+  `strategy_source` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ai',
+  `use_count` int NOT NULL DEFAULT '1',
+  `last_used_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_reusable_field_strategy` (`table_name`,`field_name`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+
+CREATE TABLE `reusable_relation_strategies` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `target_table` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `target_field` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source_table` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source_field` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `executor` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `generator` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `params_json` text COLLATE utf8mb4_unicode_ci,
+  `fallback_generators_json` text COLLATE utf8mb4_unicode_ci,
+  `rationale` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `implementation_hint` text COLLATE utf8mb4_unicode_ci,
+  `implementation_code` mediumtext COLLATE utf8mb4_unicode_ci,
+  `relation_reason` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `strategy_source` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'field_match',
+  `use_count` int NOT NULL DEFAULT '1',
+  `last_used_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_reusable_relation_strategy` (`target_table`,`target_field`,`source_table`,`source_field`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+
 SET NAMES utf8mb4;
 
 CREATE DATABASE IF NOT EXISTS `rrs_test_dev`

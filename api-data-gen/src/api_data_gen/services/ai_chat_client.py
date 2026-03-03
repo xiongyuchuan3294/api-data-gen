@@ -19,7 +19,14 @@ class AiChatClient:
             return shutil.which("claude") is not None
         return bool(self._settings.ai_base_url and self._settings.ai_model_name)
 
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_output_tokens: int | None = None,
+        response_format: dict[str, object] | None = None,
+        stop_sequences: list[str] | None = None,
+    ) -> str:
         if not self.is_configured():
             raise ValueError(
                 "AI client is not configured. Set the provider-specific AI settings or install the `claude` CLI for claude_code mode."
@@ -29,7 +36,14 @@ class AiChatClient:
         provider = self._provider()
         if provider == "claude_code":
             return self._complete_with_claude_code(system_prompt, user_prompt)
-        payload = self._build_payload(provider, system_prompt, user_prompt)
+        payload = self._build_payload(
+            provider,
+            system_prompt,
+            user_prompt,
+            max_output_tokens=max_output_tokens,
+            response_format=response_format,
+            stop_sequences=stop_sequences,
+        )
         headers = self._build_headers(provider)
 
         url = self._completion_url(provider)
@@ -88,18 +102,29 @@ class AiChatClient:
             return "anthropic"
         return "openai"
 
-    def _build_payload(self, provider: str, system_prompt: str, user_prompt: str) -> dict[str, object]:
+    def _build_payload(
+        self,
+        provider: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_output_tokens: int | None = None,
+        response_format: dict[str, object] | None = None,
+        stop_sequences: list[str] | None = None,
+    ) -> dict[str, object]:
         if provider == "anthropic":
-            return {
+            payload = {
                 "model": self._settings.ai_model_name,
                 "system": system_prompt,
                 "messages": [
                     {"role": "user", "content": user_prompt},
                 ],
                 "temperature": self._settings.ai_temperature,
-                "max_tokens": 2048,
+                "max_tokens": max_output_tokens or 2048,
             }
-        return {
+            if stop_sequences:
+                payload["stop_sequences"] = stop_sequences
+            return payload
+        payload = {
             "model": self._settings.ai_model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -107,6 +132,13 @@ class AiChatClient:
             ],
             "temperature": self._settings.ai_temperature,
         }
+        if max_output_tokens is not None:
+            payload["max_tokens"] = max_output_tokens
+        if response_format is not None:
+            payload["response_format"] = response_format
+        if stop_sequences:
+            payload["stop"] = stop_sequences
+        return payload
 
     def _build_headers(self, provider: str) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -120,25 +152,21 @@ class AiChatClient:
 
     def _extract_text(self, provider: str, data: dict[str, object]) -> str:
         if provider == "anthropic":
-            content = data.get("content")
-            if isinstance(content, list):
-                text_parts = [
-                    str(item.get("text"))
-                    for item in content
-                    if isinstance(item, dict) and item.get("type") == "text" and item.get("text")
-                ]
-                if text_parts:
-                    return "\n".join(text_parts)
+            content = _extract_anthropic_text(data)
+            if content is not None:
+                return content
+            fallback = _extract_openai_text(data)
+            if fallback is not None:
+                return fallback
             raise ValueError("AI response did not contain Anthropic text content.")
 
-        choices = data.get("choices") or []
-        if not choices:
-            raise ValueError("AI response did not contain choices.")
-        message = choices[0].get("message") or {}
-        content = message.get("content")
-        if not isinstance(content, str):
-            raise ValueError("AI response did not contain message content.")
-        return content
+        content = _extract_openai_text(data)
+        if content is not None:
+            return content
+        fallback = _extract_anthropic_text(data)
+        if fallback is not None:
+            return fallback
+        raise ValueError("AI response did not contain message content.")
 
     def _complete_with_claude_code(self, system_prompt: str, user_prompt: str) -> str:
         prompt = f"{system_prompt}\n\n{user_prompt}".strip()
@@ -191,3 +219,51 @@ def _extract_error_text(body: str) -> str:
     except json.JSONDecodeError:
         return body.strip()
     return _extract_error_message(data) or body.strip()
+
+
+def _extract_anthropic_text(data: dict[str, object]) -> str | None:
+    content = data.get("content")
+    text = _extract_text_parts(content)
+    if text is not None:
+        return text
+
+    message = data.get("message")
+    if isinstance(message, dict):
+        return _extract_text_parts(message.get("content"))
+    return None
+
+
+def _extract_openai_text(data: dict[str, object]) -> str | None:
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+
+    first = choices[0]
+    if not isinstance(first, dict):
+        return None
+
+    for key in ("message", "delta"):
+        message = first.get(key)
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        text = _extract_text_parts(content)
+        if text is not None:
+            return text
+    return None
+
+
+def _extract_text_parts(content: object) -> str | None:
+    if isinstance(content, str) and content:
+        return content
+    if not isinstance(content, list):
+        return None
+
+    text_parts = [
+        str(item.get("text"))
+        for item in content
+        if isinstance(item, dict) and item.get("type") in {"text", "output_text"} and item.get("text")
+    ]
+    if text_parts:
+        return "\n".join(text_parts)
+    return None

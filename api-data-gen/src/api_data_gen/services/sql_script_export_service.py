@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import re
+
 from api_data_gen.domain.models import GeneratedTable, ValidationCheck
 
 
 class SqlScriptExportService:
+    _SCENARIO_HEADER_RE = re.compile(r"^-- 场景:\s+(\S+)", re.MULTILINE)
+
     def __init__(self, table_locator):
         self._table_locator = table_locator
 
@@ -13,17 +17,69 @@ class SqlScriptExportService:
         validation_checks: list[ValidationCheck],
         generation_tag: str = "",
     ) -> str:
+        return self._render(
+            generated_tables=generated_tables,
+            validation_checks=validation_checks,
+            generation_tag=generation_tag,
+            include_file_header=True,
+            batch_label="",
+        )
+
+    def append_missing_scenarios(
+        self,
+        existing_script: str,
+        generated_tables: list[GeneratedTable],
+        validation_checks: list[ValidationCheck],
+        generation_tag: str = "",
+        batch_label: str = "",
+    ) -> str:
+        existing_scenarios = self.extract_scenario_ids(existing_script)
+        missing_tables = _filter_missing_scenario_tables(generated_tables, existing_scenarios)
+        if not existing_script.strip():
+            return self.render(
+                generated_tables=generated_tables,
+                validation_checks=validation_checks,
+                generation_tag=generation_tag,
+            )
+        if not missing_tables:
+            return existing_script
+        append_block = self._render(
+            generated_tables=missing_tables,
+            validation_checks=validation_checks,
+            generation_tag=generation_tag,
+            include_file_header=False,
+            batch_label=batch_label,
+        )
+        return existing_script.rstrip() + "\n\n" + append_block
+
+    @classmethod
+    def extract_scenario_ids(cls, script: str) -> set[str]:
+        return {match.group(1).strip() for match in cls._SCENARIO_HEADER_RE.finditer(script) if match.group(1).strip()}
+
+    def _render(
+        self,
+        generated_tables: list[GeneratedTable],
+        validation_checks: list[ValidationCheck],
+        generation_tag: str,
+        include_file_header: bool,
+        batch_label: str,
+    ) -> str:
         lines = [
             "-- 由 api-data-gen 生成",
         ]
+        if not include_file_header:
+            lines = [f"-- 追加批次: {batch_label or 'append'}"]
         if generation_tag:
             lines.append(f"-- 生成标签: {generation_tag}")
-        lines.extend(
-            [
-                "SET NAMES utf8mb4;",
-                "",
-            ]
-        )
+        if include_file_header:
+            lines.extend(
+                [
+                    "SET NAMES utf8mb4;",
+                    "",
+                ]
+            )
+        else:
+            lines.append("")
         lines.extend(self._render_validation_checks(validation_checks))
         lines.append("START TRANSACTION;")
         lines.append("")
@@ -75,3 +131,17 @@ class SqlScriptExportService:
             lines.append(f"-- [{status}] {check.name}{detail}")
         lines.append("")
         return lines
+
+
+def _filter_missing_scenario_tables(
+    generated_tables: list[GeneratedTable],
+    existing_scenarios: set[str],
+) -> list[GeneratedTable]:
+    if not existing_scenarios:
+        return list(generated_tables)
+    filtered: list[GeneratedTable] = []
+    for generated_table in generated_tables:
+        scenario_id = (generated_table.scenario_id or "").strip()
+        if not scenario_id or scenario_id not in existing_scenarios:
+            filtered.append(generated_table)
+    return filtered

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 
@@ -23,4 +24,94 @@ def extract_json_text(text: str) -> str:
 
 
 def parse_json_payload(text: str) -> object:
-    return json.loads(extract_json_text(text))
+    raw = extract_json_text(text)
+    return _parse_relaxed_json(raw)
+
+
+def salvage_json_array_objects(text: str) -> list[dict[str, object]]:
+    raw = extract_json_text(text)
+    start_index = raw.find("[")
+    if start_index == -1:
+        return []
+
+    recovered: list[dict[str, object]] = []
+    in_string = False
+    escape = False
+    array_depth = 0
+    object_depth = 0
+    object_start: int | None = None
+
+    for index, char in enumerate(raw[start_index:], start=start_index):
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "[":
+            array_depth += 1
+            continue
+        if char == "]":
+            array_depth = max(0, array_depth - 1)
+            continue
+        if char == "{":
+            if array_depth == 1 and object_depth == 0:
+                object_start = index
+            if array_depth >= 1:
+                object_depth += 1
+            continue
+        if char == "}" and object_depth > 0:
+            object_depth -= 1
+            if object_depth == 0 and object_start is not None:
+                fragment = raw[object_start : index + 1]
+                try:
+                    payload = _parse_relaxed_json(fragment)
+                except ValueError:
+                    object_start = None
+                    continue
+                if isinstance(payload, dict):
+                    recovered.append(payload)
+                object_start = None
+    return recovered
+
+
+def _parse_relaxed_json(raw: str) -> object:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        normalized = _normalize_relaxed_json(raw)
+        try:
+            return json.loads(normalized)
+        except json.JSONDecodeError:
+            python_style = _to_python_literal(normalized)
+            try:
+                return ast.literal_eval(python_style)
+            except (SyntaxError, ValueError) as exc:
+                raise ValueError("Unable to parse JSON payload.") from exc
+
+
+def _normalize_relaxed_json(text: str) -> str:
+    normalized = text.strip()
+    normalized = re.sub(r"([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)", r'\1"\2"\3', normalized)
+    normalized = re.sub(r",(\s*[}\]])", r"\1", normalized)
+    normalized = re.sub(r"\bNone\b", "null", normalized)
+    normalized = re.sub(r"\bTrue\b", "true", normalized)
+    normalized = re.sub(r"\bFalse\b", "false", normalized)
+    normalized = re.sub(
+        r"'([^'\\]*(?:\\.[^'\\]*)*)'",
+        lambda match: json.dumps(bytes(match.group(1), "utf-8").decode("unicode_escape")),
+        normalized,
+    )
+    return normalized
+
+
+def _to_python_literal(text: str) -> str:
+    python_style = re.sub(r"\bnull\b", "None", text)
+    python_style = re.sub(r"\btrue\b", "True", python_style)
+    python_style = re.sub(r"\bfalse\b", "False", python_style)
+    return python_style

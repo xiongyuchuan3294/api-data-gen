@@ -39,6 +39,63 @@ class LocalFieldRuleServiceTest(unittest.TestCase):
         self.assertTrue(service.generate_value(schema.columns[2], 0, "RUN20260302").startswith("6008C20260302"))
         self.assertEqual("", service.generate_value(schema.columns[3], 0, "RUN20260302"))
 
+    def test_generate_with_contextual_generators(self) -> None:
+        service = LocalFieldRuleService()
+        text_column = TableColumn("result_key", "varchar(128)", False, None, "", False, False, 128)
+        date_column = TableColumn("ds", "varchar(8)", False, None, "", False, False, 8)
+        seq_column = TableColumn("seq_no", "varchar(8)", False, None, "", False, False, 8)
+
+        row_values = {
+            "model_key": "WSTY001",
+            "result_date": "2020-12-27",
+            "cust_id": "962020122711000002",
+            "alert_date": "2020-12-20",
+        }
+        scenario_context = {"drft_no": ["DRFT-001", "DRFT-002"]}
+
+        self.assertEqual(
+            "WSTY00120201227962020122711000002",
+            service.generate_with_generator(
+                text_column,
+                "concat_template",
+                {
+                    "template": "{model_key}{result_date}{cust_id}",
+                    "transforms": {"result_date": "date:%Y%m%d"},
+                },
+                0,
+                row_values=row_values,
+            ),
+        )
+        self.assertEqual(
+            "20201220",
+            service.generate_with_generator(
+                date_column,
+                "date_format_from_field",
+                {"source_field": "alert_date", "output_format": "%Y%m%d"},
+                0,
+                row_values=row_values,
+            ),
+        )
+        self.assertEqual(
+            "DRFT-002",
+            service.generate_with_generator(
+                text_column,
+                "copy_from_context",
+                {"source_field": "drft_no"},
+                1,
+                scenario_context=scenario_context,
+            ),
+        )
+        self.assertEqual(
+            "07",
+            service.generate_with_generator(
+                seq_column,
+                "sequence_cycle",
+                {"values": ["08", "07", "10"]},
+                1,
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

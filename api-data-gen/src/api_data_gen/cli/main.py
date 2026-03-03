@@ -6,20 +6,18 @@ from datetime import datetime
 import json
 from pathlib import Path
 
-from api_data_gen.agents.orchestrator_service import AgentOrchestratorService
-from api_data_gen.agents.hybrid_orchestrator import HybridAgentOrchestrator, ExecutionMode, ExecutionConfig
-from api_data_gen.agents.executor import ReActExecutor
-from api_data_gen.agents.skills.manager import SkillManager
 from api_data_gen.config import load_settings
 from api_data_gen.domain.models import InterfaceTarget
 from api_data_gen.infra.db.field_match_repository import FieldMatchRepository
 from api_data_gen.services.data_generation_service import DataGenerationService
 from api_data_gen.services.ai_chat_client import AiChatClient
+from api_data_gen.services.ai_cache_service import AiCacheService
 from api_data_gen.services.ai_data_analysis_service import AiDataAnalysisService
 from api_data_gen.services.ai_data_generation_service import AiDataGenerationService
 from api_data_gen.services.ai_scenario_service import AiScenarioService
 from api_data_gen.infra.db.dict_repository import DictRepository
 from api_data_gen.infra.db.mysql_client import MysqlClient
+from api_data_gen.infra.db.reusable_strategy_repository import ReusableStrategyRepository
 from api_data_gen.infra.db.sample_repository import SampleRepository
 from api_data_gen.infra.db.schema_repository import SchemaRepository
 from api_data_gen.infra.db.trace_repository import TraceRepository
@@ -34,10 +32,13 @@ from api_data_gen.services.phase1_validation_service import Phase1ValidationServ
 from api_data_gen.services.planning_service import PlanningService
 from api_data_gen.services.record_validation_service import RecordValidationService
 from api_data_gen.services.requirement_parser import RequirementParser
+from api_data_gen.services.reusable_strategy_service import ReusableStrategyService
 from api_data_gen.services.schema_service import SchemaService
 from api_data_gen.services.sql_apply_service import SqlApplyService
 from api_data_gen.services.sql_script_export_service import SqlScriptExportService
 from api_data_gen.services.sql_parser import SqlParser
+
+DEFAULT_CUMULATIVE_SQL_PATH = Path("output/insert_20260303_235409_agent_auto.sql")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("--depend-fixed-value", action="append", default=[], help="Dependent fixed-value hint, free-form text")
     generate_parser.add_argument("--use-ai-scenarios", action="store_true", help="Generate scenarios with the configured AI model")
     generate_parser.add_argument("--use-ai-data", action="store_true", help="Let the configured AI model fill non-local fields per scenario")
+    generate_parser.add_argument("--strategy-file", default=None, help="Optional strategy_*.json file to reuse field generation strategies locally")
     generate_parser.add_argument("--sql-output-file", default=None, help="Optional path to write a combined SQL script")
     generate_parser.add_argument("--apply-sql", action="store_true", help="Apply generated inserts to the configured MySQL schemas")
     generate_parser.add_argument("--force-apply", action="store_true", help="Apply SQL even when validation checks fail")
@@ -117,6 +119,9 @@ def main() -> None:
     local_field_rule_service = LocalFieldRuleService(dict_rule_resolver)
     requirement_parser = RequirementParser()
     ai_chat_client = AiChatClient(settings)
+    ai_cache_service = AiCacheService()
+    reusable_strategy_repository = ReusableStrategyRepository(client, settings)
+    reusable_strategy_service = ReusableStrategyService(reusable_strategy_repository)
     optional_ai_scenario_service = _build_optional_ai_scenario_service(ai_chat_client)
     optional_ai_analysis_service = _build_optional_ai_analysis_service(ai_chat_client)
     optional_ai_data_service = _build_optional_ai_data_service(ai_chat_client)
@@ -173,39 +178,25 @@ def main() -> None:
             dict_rule_resolver=dict_rule_resolver,
             requirement_parser=requirement_parser,
             ai_scenario_service=optional_ai_scenario_service,
+            ai_cache_service=ai_cache_service,
         )
         interfaces = [_parse_interface_target(raw_value) for raw_value in args.api]
 
-        # 澶勭悊 agent_auto 妯″紡
         if args.strategy_mode == "agent_auto":
-            print(f"[3/3] 鎵ц agent_auto 妯″紡 (AI 鑷富瑙勫垝)...")
-            _require_ai_config(ai_chat_client)
-            hybrid_orchestrator = _build_hybrid_orchestrator(
-                planning_service=planning_service,
-                interface_trace_service=interface_service,
-                schema_service=schema_service,
-                sample_repository=sample_repository,
-                local_field_rule_service=local_field_rule_service,
-                ai_chat_client=ai_chat_client,
-                schema_repository=schema_repository,
-                ai_scenario_service=optional_ai_scenario_service,
-                ai_data_generation_service=optional_ai_data_service,
-                ai_data_analysis_service=optional_ai_analysis_service,
-            )
-            config = ExecutionConfig(
-                mode=ExecutionMode.AGENT_AUTO,
-                max_agent_turns=args.max_agent_turns,
-            )
-            print(f"       姝ｅ湪璋冪敤 AI 鑷富瑙勫垝 (鏈€澶?{args.max_agent_turns} 杞?...")
-            result = hybrid_orchestrator.build_draft(
+            print(f"[3/3] 鎵ц agent_auto 妯″紡 (寮哄埗 AI 鐢熸垚鍦烘櫙)...")
+            print(f"       姝ｅ湪浣跨敤澶у瀷鐢熸垚娴嬭瘯鍦烘櫙...")
+            result = planning_service.build_draft(
                 requirement_text,
                 interfaces,
-                config=config,
-                sample_limit=args.sample_limit,
+                args.sample_limit,
                 fixed_values=args.fixed_value,
                 dependent_fixed_values=args.depend_fixed_value,
+                use_ai_scenarios=True,
             )
+            _assert_ai_scenarios(result.scenarios, "agent_auto draft")
         elif args.strategy_mode == "agent":
+            from api_data_gen.agents.orchestrator_service import AgentOrchestratorService
+
             print(f"[3/3] 鎵ц agent 妯″紡 (鐢熸垚鎻愮ず璇嶅寘)...")
             agent_orchestrator = AgentOrchestratorService(
                 planning_service=planning_service,
@@ -269,6 +260,7 @@ def main() -> None:
             dict_rule_resolver=dict_rule_resolver,
             requirement_parser=requirement_parser,
             ai_scenario_service=optional_ai_scenario_service,
+            ai_cache_service=ai_cache_service,
         )
         generation_service = DataGenerationService(
             planning_service=planning_service,
@@ -281,82 +273,48 @@ def main() -> None:
             record_validation_service=RecordValidationService(),
             ai_data_analysis_service=optional_ai_analysis_service,
             ai_data_generation_service=optional_ai_data_service,
+            ai_cache_service=ai_cache_service,
+            reusable_strategy_service=reusable_strategy_service,
+            field_match_repository=field_match_repository,
         )
         interfaces = [_parse_interface_target(raw_value) for raw_value in args.api]
         generation_tag = args.generation_tag
         if generation_tag is None and args.apply_sql:
             generation_tag = _build_generation_tag()
+        imported_field_decisions = {}
+        if args.strategy_file:
+            from api_data_gen.services.strategy_export_service import StrategyExportService
 
-        # 澶勭悊 agent_auto 妯″紡
+            strategy_export_service = StrategyExportService()
+            imported_field_decisions = strategy_export_service.load_field_decisions(args.strategy_file)
+            print(f"       复用策略文件: {args.strategy_file}")
+
         if args.strategy_mode == "agent_auto":
-            print(f"[3/4] 鎵ц agent_auto 妯″紡 (AI 鑷富瑙勫垝)...")
-            _require_ai_config(ai_chat_client)
-            hybrid_orchestrator = _build_hybrid_orchestrator(
-                planning_service=planning_service,
-                interface_trace_service=interface_service,
-                schema_service=schema_service,
-                sample_repository=sample_repository,
-                local_field_rule_service=local_field_rule_service,
-                ai_chat_client=ai_chat_client,
-                schema_repository=schema_repository,
-                ai_scenario_service=optional_ai_scenario_service,
-                ai_data_generation_service=optional_ai_data_service,
-                ai_data_analysis_service=optional_ai_analysis_service,
+            if args.strategy_file:
+                print(f"[3/4] 鎵ц agent_auto 妯″紡 (AI 鐢熸垚鍦烘櫙 + 复用策略文件 + 鏈湴鐢熸垚鏁版嵁)...")
+            else:
+                print(f"[3/4] 鎵ц agent_auto 妯″紡 (AI 鐢熸垚鍦烘櫙 + AI 琛ㄧ骇瀛楁鍐崇瓥 + 鏈湴鐢熸垚鏁版嵁)...")
+            if args.strategy_file:
+                print(f"       姝ｅ湪浣跨敤 AI 鐢熸垚鍦烘櫙锛屽瓧娈垫潵婧愮瓥鐣ュ皢鐩存帴澶嶇敤 strategy-file锛屼笉鍐嶈姹?AI 鍐崇瓥...")
+            else:
+                print(f"       姝ｅ湪浣跨敤 AI 鐢熸垚鍦烘櫙锛屽苟鍦ㄦ瘡寮犺〃涓婂仛涓€娆″瓧娈垫潵婧愬喅绛栵紝鏁版嵁浠嶇敱鏈湴瑙勫垯鐢熸垚...")
+            result = generation_service.generate(
+                requirement_text,
+                interfaces,
+                args.sample_limit,
+                generation_tag=generation_tag,
+                fixed_values=args.fixed_value,
+                dependent_fixed_values=args.depend_fixed_value,
+                use_ai_scenarios=True,
+                use_ai_field_decisions=not bool(args.strategy_file),
+                imported_field_decisions=imported_field_decisions,
             )
-            config = ExecutionConfig(
-                mode=ExecutionMode.AGENT_AUTO,
-                max_agent_turns=args.max_agent_turns,
-            )
-            print(f"       姝ｅ湪璋冪敤 AI 鑷富瑙勫垝 (鏈€澶?{args.max_agent_turns} 杞?...")
-            try:
-                result = hybrid_orchestrator.generate(
-                    requirement_text,
-                    interfaces,
-                    config=config,
-                    sample_limit=args.sample_limit,
-                    generation_tag=generation_tag,
-                    fixed_values=args.fixed_value,
-                    dependent_fixed_values=args.depend_fixed_value,
-                )
-                print(f"       AI 鎵ц瀹屾垚锛屾鏌ョ粨鏋?..")
-                # 妫€鏌ユ槸鍚︽湁 AI 鐢熸垚鐨勬暟鎹?
-                has_ai_data = any(
-                    t.get("generation_source") == "ai"
-                    for t in result.generated_tables
-                ) if result.generated_tables else False
-
-                # 濡傛灉娌℃湁 AI 鐢熸垚鐨勬暟鎹紝鍥為€€鍒版湰鍦版ā寮?
-                if not has_ai_data:
-                    print(f"       鈿狅笍 AI 鑷富瑙勫垝鏈敓鎴愭湁鏁堟暟鎹?(has_ai_data=False)锛屽洖閫€鍒版湰鍦版ā寮?..")
-                    print(f"       褰撳墠 generation_source: {[t.get('generation_source') for t in result.generated_tables]}")
-                    use_ai_scenarios = False
-                    use_ai_data = False
-                    result = generation_service.generate(
-                        requirement_text,
-                        interfaces,
-                        args.sample_limit,
-                        generation_tag=generation_tag,
-                        fixed_values=args.fixed_value,
-                        dependent_fixed_values=args.depend_fixed_value,
-                        use_ai_scenarios=use_ai_scenarios,
-                        use_ai_data=use_ai_data,
-                    )
-            except Exception as e:
-                print(f"       鈿狅笍 AI 鎵ц澶辫触: {e}")
-                print(f"       鍥為€€鍒版湰鍦版ā寮?..")
-                use_ai_scenarios = False
-                use_ai_data = False
-                result = generation_service.generate(
-                    requirement_text,
-                    interfaces,
-                    args.sample_limit,
-                    generation_tag=generation_tag,
-                    fixed_values=args.fixed_value,
-                    dependent_fixed_values=args.depend_fixed_value,
-                    use_ai_scenarios=use_ai_scenarios,
-                    use_ai_data=use_ai_data,
-                )
+            _assert_ai_scenarios(result.scenarios, "agent_auto generate")
         elif args.strategy_mode == "agent":
+            if args.strategy_file:
+                raise ValueError("Agent mode only prepares prompt specs and cannot consume --strategy-file.")
+            from api_data_gen.agents.orchestrator_service import AgentOrchestratorService
+
             agent_orchestrator = AgentOrchestratorService(
                 planning_service=planning_service,
                 interface_trace_service=interface_service,
@@ -394,6 +352,7 @@ def main() -> None:
                 dependent_fixed_values=args.depend_fixed_value,
                 use_ai_scenarios=use_ai_scenarios,
                 use_ai_data=use_ai_data,
+                imported_field_decisions=imported_field_decisions,
             )
         print(f"[4/4] 鏁版嵁鐢熸垚瀹屾垚锛屾鍦ㄤ繚瀛樼粨鏋?..")
 
@@ -401,17 +360,34 @@ def main() -> None:
             raise ValueError("Agent mode only prepares prompt specs and local context. Use local/direct/agent_auto mode to render or apply SQL.")
 
         # 鑷姩杈撳嚭鍒?output 鏂囦欢澶?
-        _auto_save_output(result, args.strategy_mode, generation_tag, client)
+        _auto_save_output(
+            result,
+            args.strategy_mode,
+            generation_tag,
+            client,
+            requirement_file=args.requirement_file,
+            interfaces=interfaces,
+        )
 
         if args.sql_output_file:
             print(f"       姝ｅ湪淇濆瓨 SQL 鏂囦欢鍒? {args.sql_output_file}")
-            script = SqlScriptExportService(client).render(
-                result.generated_tables,
-                result.validation_checks,
-                generation_tag=result.generation_tag,
-            )
+            sql_export_service = SqlScriptExportService(client)
             output_path = Path(args.sql_output_file)
             output_path.parent.mkdir(parents=True, exist_ok=True)
+            if output_path.exists():
+                script = sql_export_service.append_missing_scenarios(
+                    existing_script=output_path.read_text(encoding="utf-8"),
+                    generated_tables=result.generated_tables,
+                    validation_checks=result.validation_checks,
+                    generation_tag=result.generation_tag,
+                    batch_label=datetime.now().isoformat(timespec="seconds"),
+                )
+            else:
+                script = sql_export_service.render(
+                    result.generated_tables,
+                    result.validation_checks,
+                    generation_tag=result.generation_tag,
+                )
             output_path.write_text(script, encoding="utf-8")
         if args.apply_sql:
             print(f"       姝ｅ湪灏?SQL 搴旂敤鍒版暟鎹簱...")
@@ -445,9 +421,47 @@ def _build_generation_tag() -> str:
     return datetime.now().strftime("%Y%m%d%H%M%S%f")
 
 
-def _auto_save_output(result, strategy_mode: str, generation_tag: str | None, client: MysqlClient) -> None:
-    """鑷姩淇濆瓨杈撳嚭鍒?output 鏂囦欢澶?""
+def _assert_ai_scenarios(scenarios, operation: str) -> None:
+    if not scenarios:
+        raise ValueError(f"{operation} produced no scenarios.")
+
+    non_ai_ids = [
+        getattr(scenario, "id", "<unknown>")
+        for scenario in scenarios
+        if getattr(scenario, "generation_source", "") != "ai"
+    ]
+    if non_ai_ids:
+        raise ValueError(
+            f"{operation} must return AI-generated scenarios, but found non-AI scenarios: {non_ai_ids}"
+        )
+
+
+def _assert_ai_generated_tables(generated_tables, operation: str) -> None:
+    if not generated_tables:
+        raise ValueError(f"{operation} produced no generated tables.")
+
+    non_ai_tables = [
+        getattr(table, "table_name", "<unknown>")
+        for table in generated_tables
+        if getattr(table, "generation_source", "") != "ai"
+    ]
+    if non_ai_tables:
+        raise ValueError(
+            f"{operation} must keep AI-generated table markers, but found non-AI tables: {non_ai_tables}"
+        )
+
+
+def _auto_save_output(
+    result,
+    strategy_mode: str,
+    generation_tag: str | None,
+    client: MysqlClient,
+    requirement_file: str = "",
+    interfaces: list[InterfaceTarget] | None = None,
+) -> None:
+    """Persist the command result to the local output directory."""
     from api_data_gen.services.sql_script_export_service import SqlScriptExportService
+    from api_data_gen.services.strategy_export_service import StrategyExportService
 
     # 鍒涘缓 output 鏂囦欢澶?
     output_dir = Path("output")
@@ -463,17 +477,59 @@ def _auto_save_output(result, strategy_mode: str, generation_tag: str | None, cl
     json_path.write_text(json.dumps(asdict(result), ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[Output] JSON saved to: {json_path}")
 
+    if hasattr(result, "generated_tables") and result.generated_tables:
+        strategy_export_service = StrategyExportService()
+        generated_at = datetime.now().isoformat(timespec="seconds")
+
+        strategy_filename = f"strategy_{timestamp}_{mode_suffix}.json"
+        strategy_path = output_dir / strategy_filename
+        strategy_payload = strategy_export_service.render_strategy_config(
+            report=result,
+            strategy_mode=strategy_mode,
+            generated_at=generated_at,
+            source_result_file=json_filename,
+        )
+        strategy_path.write_text(json.dumps(strategy_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[Output] Strategy JSON saved to: {strategy_path}")
+
+        candidate_filename = f"generator_candidates_{timestamp}_{mode_suffix}.json"
+        candidate_path = output_dir / candidate_filename
+        candidate_payload = strategy_export_service.render_generator_candidates(
+            report=result,
+            strategy_mode=strategy_mode,
+            generated_at=generated_at,
+            source_result_file=json_filename,
+            source_strategy_file=strategy_filename,
+        )
+        candidate_path.write_text(json.dumps(candidate_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[Output] Generator candidates saved to: {candidate_path}")
+
     # 瀵逛簬 local銆乨irect 鍜?agent_auto 妯″紡锛岄澶栦繚瀛?SQL 鏂囦欢
     if strategy_mode in ("local", "direct", "agent_auto") and hasattr(result, "generated_tables") and result.generated_tables:
+        sql_export_service = SqlScriptExportService(client)
         sql_filename = f"insert_{timestamp}_{mode_suffix}.sql"
         sql_path = output_dir / sql_filename
-        script = SqlScriptExportService(client).render(
+        script = sql_export_service.render(
             result.generated_tables,
             result.validation_checks,
             generation_tag=generation_tag,
         )
         sql_path.write_text(script, encoding="utf-8")
         print(f"[Output] SQL saved to: {sql_path}")
+
+        cumulative_sql_path = DEFAULT_CUMULATIVE_SQL_PATH
+        if cumulative_sql_path.exists():
+            cumulative_script = sql_export_service.append_missing_scenarios(
+                existing_script=cumulative_sql_path.read_text(encoding="utf-8"),
+                generated_tables=result.generated_tables,
+                validation_checks=result.validation_checks,
+                generation_tag=generation_tag,
+                batch_label=datetime.now().isoformat(timespec="seconds"),
+            )
+        else:
+            cumulative_script = script
+        cumulative_sql_path.write_text(cumulative_script, encoding="utf-8")
+        print(f"[Output] Cumulative SQL saved to: {cumulative_sql_path}")
 
 
 def _build_optional_ai_scenario_service(ai_chat_client: AiChatClient):
@@ -492,49 +548,6 @@ def _build_optional_ai_data_service(ai_chat_client: AiChatClient):
     if not ai_chat_client.is_configured():
         return None
     return AiDataGenerationService(ai_chat_client)
-
-
-def _build_hybrid_orchestrator(
-    planning_service,
-    interface_trace_service,
-    schema_service,
-    sample_repository,
-    local_field_rule_service,
-    ai_chat_client,
-    schema_repository=None,
-    ai_scenario_service=None,
-    ai_data_generation_service=None,
-    ai_data_analysis_service=None,
-) -> HybridAgentOrchestrator:
-    """鏋勫缓娣峰悎妯″紡 Agent 缂栨帓鍣?""
-    # 鍒濆鍖栨妧鑳斤紙濡傛灉灏氭湭鍒濆鍖栵級
-    if not SkillManager.is_initialized():
-        SkillManager.initialize(
-            sample_repository=sample_repository,
-            schema_repository=schema_repository,
-            interface_trace_service=interface_trace_service,
-            schema_service=schema_service,
-            ai_scenario_service=ai_scenario_service,
-            ai_data_generation_service=ai_data_generation_service,
-            ai_data_analysis_service=ai_data_analysis_service,
-            local_field_rule_service=local_field_rule_service,
-        )
-
-    # 鍒涘缓 ReAct 鎵ц鍣?
-    react_executor = ReActExecutor(llm_client=ai_chat_client)
-
-    # 鍒涘缓娣峰悎缂栨帓鍣?
-    return HybridAgentOrchestrator(
-        planning_service=planning_service,
-        interface_trace_service=interface_trace_service,
-        schema_service=schema_service,
-        sample_repository=sample_repository,
-        local_field_rule_service=local_field_rule_service,
-        ai_chat_client=ai_chat_client,
-        react_executor=react_executor,
-    )
-
-
 def _require_ai_config(ai_chat_client: AiChatClient) -> None:
     if not ai_chat_client.is_configured():
         raise ValueError(
@@ -544,4 +557,3 @@ def _require_ai_config(ai_chat_client: AiChatClient) -> None:
 
 if __name__ == "__main__":
     main()
-

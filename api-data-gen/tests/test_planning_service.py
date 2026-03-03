@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
 
 import tests._bootstrap  # noqa: F401
@@ -14,6 +15,7 @@ from api_data_gen.domain.models import (
     TraceRequest,
 )
 from api_data_gen.services.planning_service import PlanningService
+from api_data_gen.services.ai_cache_service import AiCacheService
 from api_data_gen.services.requirement_parser import RequirementParser
 
 
@@ -268,6 +270,83 @@ class PlanningServiceTest(unittest.TestCase):
                 sample_limit=2,
                 use_ai_scenarios=True,
             )
+
+    def test_build_draft_does_not_fallback_to_local_when_ai_scenarios_requested_without_service(self) -> None:
+        service = PlanningService(
+            settings=Settings(),
+            trace_repository=_FakeTraceRepository(),
+            interface_trace_service=_FakeInterfaceTraceService(),
+            schema_service=_FakeSchemaService(),
+            sample_repository=_FakeSampleRepository(),
+            dict_rule_resolver=_FakeDictRuleResolver(),
+            requirement_parser=RequirementParser(),
+            ai_scenario_service=None,
+        )
+
+        with self.assertRaisesRegex(ValueError, "AI scenario generation requested"):
+            service.build_draft(
+                requirement_text="生成覆盖核心链路的测试场景",
+                interfaces=[
+                    InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo"),
+                    InterfaceTarget(name="custDrftRecord", path="/wst/custDrftRecord"),
+                ],
+                sample_limit=2,
+                use_ai_scenarios=True,
+            )
+
+    def test_build_draft_reuses_cached_ai_scenarios_without_ai_service(self) -> None:
+        ai_scenario_service = _FakeAiScenarioService()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_service = AiCacheService(temp_dir)
+            service = PlanningService(
+                settings=Settings(),
+                trace_repository=_FakeTraceRepository(),
+                interface_trace_service=_FakeInterfaceTraceService(),
+                schema_service=_FakeSchemaService(),
+                sample_repository=_FakeSampleRepository(),
+                dict_rule_resolver=_FakeDictRuleResolver(),
+                requirement_parser=RequirementParser(),
+                ai_scenario_service=ai_scenario_service,
+                ai_cache_service=cache_service,
+            )
+
+            first_report = service.build_draft(
+                requirement_text="生成覆盖核心链路的测试场景",
+                interfaces=[
+                    InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo"),
+                    InterfaceTarget(name="custDrftRecord", path="/wst/custDrftRecord"),
+                ],
+                sample_limit=2,
+                use_ai_scenarios=True,
+            )
+
+            cached_service = PlanningService(
+                settings=Settings(),
+                trace_repository=_FakeTraceRepository(),
+                interface_trace_service=_FakeInterfaceTraceService(),
+                schema_service=_FakeSchemaService(),
+                sample_repository=_FakeSampleRepository(),
+                dict_rule_resolver=_FakeDictRuleResolver(),
+                requirement_parser=RequirementParser(),
+                ai_scenario_service=None,
+                ai_cache_service=cache_service,
+            )
+
+            second_report = cached_service.build_draft(
+                requirement_text="生成覆盖核心链路的测试场景",
+                interfaces=[
+                    InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo"),
+                    InterfaceTarget(name="custDrftRecord", path="/wst/custDrftRecord"),
+                ],
+                sample_limit=2,
+                use_ai_scenarios=True,
+            )
+
+        self.assertEqual(1, len(ai_scenario_service.calls))
+        self.assertEqual(
+            [scenario.title for scenario in first_report.scenarios],
+            [scenario.title for scenario in second_report.scenarios],
+        )
 
 
 if __name__ == "__main__":

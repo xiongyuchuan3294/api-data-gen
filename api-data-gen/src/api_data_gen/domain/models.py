@@ -117,6 +117,44 @@ class TableDataPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class FieldGenerationStrategy:
+    executor: str = "local"
+    generator: str = ""
+    params: dict[str, object] = field(default_factory=dict)
+    fallback_generators: list[str] = field(default_factory=list)
+    rationale: str = ""
+    implementation_hint: str = ""
+    implementation_code: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class AiTableGenerationAdvice:
+    table_name: str
+    rows: list[dict[str, str]] = field(default_factory=list)
+    field_strategies: dict[str, str] = field(default_factory=dict)
+    field_generation_strategies: dict[str, FieldGenerationStrategy] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class StoredFieldStrategy:
+    table_name: str
+    field_name: str
+    strategy: FieldGenerationStrategy
+    strategy_source: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class StoredRelationStrategy:
+    target_table: str
+    target_field: str
+    source_table: str
+    source_field: str
+    strategy: FieldGenerationStrategy
+    relation_reason: str = ""
+    strategy_source: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class AgentRoutingDecision:
     mode: str = "local"
     operation: str = ""
@@ -194,6 +232,8 @@ class GeneratedTable:
     insert_sql: list[str] = field(default_factory=list)
     scenario_id: str = ""
     scenario_title: str = ""
+    field_strategies: dict[str, str] = field(default_factory=dict)
+    field_generation_strategies: dict[str, FieldGenerationStrategy] = field(default_factory=dict)
     generation_source: str = ""  # 数据来源: "local"(本地) / "ai"(AI) / "hybrid"(混合)
 
 

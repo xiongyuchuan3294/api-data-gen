@@ -36,6 +36,11 @@ class CrossTableAlignmentService:
                 row_count=generated_table.row_count,
                 rows=[GeneratedRow(values=row) for row in rows_by_table[generated_table.table_name]],
                 insert_sql=[],
+                scenario_id=generated_table.scenario_id,
+                scenario_title=generated_table.scenario_title,
+                field_strategies=generated_table.field_strategies,
+                field_generation_strategies=generated_table.field_generation_strategies,
+                generation_source=generated_table.generation_source,
             )
             for generated_table in generated_tables
         ]
@@ -73,7 +78,15 @@ def _resolve_aligned_values(
     non_empty_values = [values for values in actual_values if values]
     if len(non_empty_values) < 2:
         return []
-    return _ordered_intersection(non_empty_values)
+    intersection = _ordered_intersection(non_empty_values)
+    if intersection:
+        return intersection
+    return _select_reference_values(
+        column_name=column_name,
+        involved_tables=involved_tables,
+        plans_by_table=plans_by_table,
+        rows_by_table=rows_by_table,
+    )
 
 
 def _collect_condition_values(
@@ -114,3 +127,41 @@ def _ordered_intersection(values_by_table: list[list[str]]) -> list[str]:
     if not shared:
         return []
     return [value for value in values_by_table[0] if value in shared]
+
+
+def _select_reference_values(
+    column_name: str,
+    involved_tables: list[str],
+    plans_by_table: dict[str, TableDataPlan],
+    rows_by_table: dict[str, list[dict[str, str | None]]],
+) -> list[str]:
+    ranked_tables = sorted(
+        involved_tables,
+        key=lambda table_name: (
+            _column_source_rank(plans_by_table.get(table_name), column_name),
+            involved_tables.index(table_name),
+        ),
+    )
+    for table_name in ranked_tables:
+        values = _collect_actual_values(rows_by_table[table_name], column_name)
+        if values:
+            return values
+    return []
+
+
+def _column_source_rank(table_plan: TableDataPlan | None, column_name: str) -> int:
+    if table_plan is None:
+        return 99
+    for column_plan in table_plan.column_plans:
+        if column_plan.column_name != column_name:
+            continue
+        priority = {
+            "condition": 0,
+            "sample": 1,
+            "dictionary": 2,
+            "generated": 3,
+            "default": 4,
+            "optional": 5,
+        }
+        return priority.get(column_plan.source, 50)
+    return 99

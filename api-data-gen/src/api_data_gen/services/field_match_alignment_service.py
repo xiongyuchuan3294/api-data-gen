@@ -39,6 +39,11 @@ class FieldMatchAlignmentService:
                 row_count=generated_table.row_count,
                 rows=[GeneratedRow(values=row) for row in rows_by_table[generated_table.table_name]],
                 insert_sql=[],
+                scenario_id=generated_table.scenario_id,
+                scenario_title=generated_table.scenario_title,
+                field_strategies=generated_table.field_strategies,
+                field_generation_strategies=generated_table.field_generation_strategies,
+                generation_source=generated_table.generation_source,
             )
             for generated_table in generated_tables
         ]

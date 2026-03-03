@@ -29,6 +29,7 @@ class PlanningService:
         dict_rule_resolver,
         requirement_parser: RequirementParser,
         ai_scenario_service=None,
+        ai_cache_service=None,
     ):
         self._settings = settings
         self._trace_repository = trace_repository
@@ -38,6 +39,7 @@ class PlanningService:
         self._dict_rule_resolver = dict_rule_resolver
         self._requirement_parser = requirement_parser
         self._ai_scenario_service = ai_scenario_service
+        self._ai_cache_service = ai_cache_service
 
     def build_draft(
         self,
@@ -90,7 +92,20 @@ class PlanningService:
         dependent_fixed_values: list[str] | None,
         use_ai_scenarios: bool,
     ) -> list[ScenarioDraft]:
-        if use_ai_scenarios and self._ai_scenario_service is not None:
+        if use_ai_scenarios:
+            cached_scenarios = None
+            if self._ai_cache_service is not None:
+                cached_scenarios = self._ai_cache_service.load_scenarios(
+                    requirement_text=requirement_text,
+                    interface_infos=interface_infos,
+                    schemas=schemas,
+                    fixed_values=fixed_values,
+                    dependent_fixed_values=dependent_fixed_values,
+                )
+            if cached_scenarios:
+                return cached_scenarios
+            if self._ai_scenario_service is None:
+                raise ValueError("AI scenario generation requested but AI scenario service is unavailable.")
             scenarios = self._ai_scenario_service.generate(
                 requirement_text,
                 interface_infos,
@@ -100,6 +115,15 @@ class PlanningService:
             )
             if not scenarios:
                 raise ValueError("AI scenario generation returned no scenarios.")
+            if self._ai_cache_service is not None:
+                self._ai_cache_service.save_scenarios(
+                    requirement_text=requirement_text,
+                    interface_infos=interface_infos,
+                    schemas=schemas,
+                    fixed_values=fixed_values,
+                    dependent_fixed_values=dependent_fixed_values,
+                    scenarios=scenarios,
+                )
             return scenarios
 
         scenarios: list[ScenarioDraft] = []

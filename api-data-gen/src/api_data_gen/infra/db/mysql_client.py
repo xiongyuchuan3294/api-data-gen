@@ -59,6 +59,8 @@ class MysqlClient:
             "t_request_info",
             "t_database_operation",
             "field_match_relations",
+            "reusable_field_strategies",
+            "reusable_relation_strategies",
             "t_aml_sys_dict_info",
             "t_aml_f_import_info",
         }
