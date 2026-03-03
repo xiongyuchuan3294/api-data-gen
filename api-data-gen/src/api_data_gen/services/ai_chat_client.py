@@ -259,11 +259,21 @@ def _extract_text_parts(content: object) -> str | None:
     if not isinstance(content, list):
         return None
 
+    # Support multiple content types including thinking (reasoning models like DeepSeek R1)
+    text_types = {"text", "output_text", "thinking"}
+
     text_parts = [
         str(item.get("text"))
         for item in content
-        if isinstance(item, dict) and item.get("type") in {"text", "output_text"} and item.get("text")
+        if isinstance(item, dict) and item.get("type") in text_types and item.get("text")
     ]
     if text_parts:
         return "\n".join(text_parts)
+
+    # For thinking type content, check for 'thinking' field
+    if content:
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "thinking" and item.get("thinking"):
+                return str(item.get("thinking"))
+
     return None
