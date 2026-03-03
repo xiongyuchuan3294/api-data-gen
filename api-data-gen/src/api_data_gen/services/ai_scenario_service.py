@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 
@@ -23,20 +23,20 @@ class AiScenarioService:
         sql_info = _format_interface_sql_info(interface_infos)
         schema_text = _format_table_schemas(schemas)
         user_prompt = (
-            "请基于业务需求、接口SQL链路、表结构和固定值约束，生成高价值的P0测试场景。\n\n"
-            f"业务需求:\n{requirement_text}\n\n"
-            f"接口SQL链路:\n{sql_info}\n\n"
-            f"表结构:\n{schema_text}\n\n"
-            f"固定字段:\n{format_fixed_value_lines(fixed_values) or '[无]'}\n\n"
-            f"依赖固定值:\n{format_fixed_value_lines(dependent_fixed_values) or '[无]'}\n\n"
-            "输出要求:\n"
-            f"1. 输出严格JSON数组，最多{self._max_scenarios}个场景\n"
-            "2. 每个场景字段: name, description, tableRequirements\n"
-            "3. tableRequirements 为对象，键是表名，值是该表的数据要求描述\n"
-            "4. 避免重复场景，优先覆盖核心正向链路、分页稳定性、字典一致性、跨表关联一致性\n"
+            "璇峰熀浜庝笟鍔￠渶姹傘€佹帴鍙QL閾捐矾銆佽〃缁撴瀯鍜屽浐瀹氬€肩害鏉燂紝鐢熸垚楂樹环鍊肩殑P0娴嬭瘯鍦烘櫙銆俓n\n"
+            f"涓氬姟闇€姹?\n{requirement_text}\n\n"
+            f"鎺ュ彛SQL閾捐矾:\n{sql_info}\n\n"
+            f"琛ㄧ粨鏋?\n{schema_text}\n\n"
+            f"鍥哄畾瀛楁:\n{format_fixed_value_lines(fixed_values) or '[鏃燷'}\n\n"
+            f"渚濊禆鍥哄畾鍊?\n{format_fixed_value_lines(dependent_fixed_values) or '[鏃燷'}\n\n"
+            "杈撳嚭瑕佹眰:\n"
+            f"1. 杈撳嚭涓ユ牸JSON鏁扮粍锛屾渶澶歿self._max_scenarios}涓満鏅痋n"
+            "2. 姣忎釜鍦烘櫙瀛楁: name, description, tableRequirements\n"
+            "3. tableRequirements 涓哄璞★紝閿槸琛ㄥ悕锛屽€兼槸璇ヨ〃鐨勬暟鎹姹傛弿杩癨n"
+            "4. 閬垮厤閲嶅鍦烘櫙锛屼紭鍏堣鐩栨牳蹇冩鍚戦摼璺€佸垎椤电ǔ瀹氭€с€佸瓧鍏镐竴鑷存€с€佽法琛ㄥ叧鑱斾竴鑷存€n"
         )
         response = self._ai_chat_client.complete(
-            system_prompt="你是一位资深金融测试架构师，负责生成结构化数据库测试场景。",
+            system_prompt="浣犳槸涓€浣嶈祫娣遍噾铻嶆祴璇曟灦鏋勫笀锛岃礋璐ｇ敓鎴愮粨鏋勫寲鏁版嵁搴撴祴璇曞満鏅€?,
             user_prompt=user_prompt,
         )
         payload = parse_json_payload(response)
@@ -47,7 +47,7 @@ class AiScenarioService:
         for index, item in enumerate(payload[: self._max_scenarios], start=1):
             if not isinstance(item, dict):
                 continue
-            title = str(item.get("name") or f"ai_scenario_{index}")
+            title = str(item.get("name") or f"AI鍦烘櫙_{index}")
             description = str(item.get("description") or title)
             raw_table_requirements = item.get("tableRequirements") or {}
             if not isinstance(raw_table_requirements, dict):
@@ -77,17 +77,17 @@ class AiScenarioService:
 def _format_interface_sql_info(interface_infos: list[InterfaceInfo]) -> str:
     parts: list[str] = []
     for interface in interface_infos:
-        parts.append(f"- 接口: {interface.name} {interface.path}")
+        parts.append(f"- 鎺ュ彛: {interface.name} {interface.path}")
         for sql_info in interface.sql_infos:
-            conditions = "; ".join(sql_info.conditions) if sql_info.conditions else "[无条件]"
-            parts.append(f"  - 表: {sql_info.table_name}; 条件: {conditions}")
+            conditions = "; ".join(sql_info.conditions) if sql_info.conditions else "[鏃犳潯浠禲"
+            parts.append(f"  - 琛? {sql_info.table_name}; 鏉′欢: {conditions}")
     return "\n".join(parts)
 
 
 def _format_table_schemas(schemas: dict[str, TableSchema]) -> str:
     parts: list[str] = []
     for table_name, schema in schemas.items():
-        parts.append(f"表: {table_name}; 主键: {', '.join(schema.primary_keys) or '[无]'}")
+        parts.append(f"琛? {table_name}; 涓婚敭: {', '.join(schema.primary_keys) or '[鏃燷'}")
         for column in schema.columns:
             constraints = []
             if not column.nullable:
@@ -103,3 +103,4 @@ def _format_table_schemas(schemas: dict[str, TableSchema]) -> str:
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_").lower()
     return slug or "scenario"
+

@@ -194,6 +194,7 @@ class GeneratedTable:
     insert_sql: list[str] = field(default_factory=list)
     scenario_id: str = ""
     scenario_title: str = ""
+    generation_source: str = ""  # 数据来源: "local"(本地) / "ai"(AI) / "hybrid"(混合)
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from enum import Enum
 from dataclasses import dataclass, field
@@ -19,34 +19,34 @@ from api_data_gen.domain.models import (
 
 
 class ExecutionMode(Enum):
-    """执行模式"""
+    """鎵ц妯″紡"""
 
-    LOCAL = "local"  # 纯本地规则执行
-    DIRECT = "direct"  # 直接调用 AI，不经过 Agent
-    AGENT_PROMPT = "agent_prompt"  # 准备提示词，外部模型执行
-    AGENT_AUTO = "agent_auto"  # Agent 自主执行（新增）
+    LOCAL = "local"  # 绾湰鍦拌鍒欐墽琛?
+    DIRECT = "direct"  # 鐩存帴璋冪敤 AI锛屼笉缁忚繃 Agent
+    AGENT_PROMPT = "agent_prompt"  # 鍑嗗鎻愮ず璇嶏紝澶栭儴妯″瀷鎵ц
+    AGENT_AUTO = "agent_auto"  # Agent 鑷富鎵ц锛堟柊澧烇級
 
 
 @dataclass
 class ExecutionConfig:
-    """执行配置"""
+    """鎵ц閰嶇疆"""
 
     mode: ExecutionMode = ExecutionMode.AGENT_PROMPT
     max_agent_turns: int = 10
     enable_mcp: bool = False
     mcp_port: int = 8000
-    fallback_to_local: bool = True  # Agent 失败时回退到本地
+    fallback_to_local: bool = True  # Agent 澶辫触鏃跺洖閫€鍒版湰鍦?
 
 
 class HybridAgentOrchestrator:
     """
-    混合模式 Agent 编排器
+    娣峰悎妯″紡 Agent 缂栨帓鍣?
 
-    支持多种执行模式:
-    - LOCAL: 保持原有固定流程
-    - DIRECT: 在特定节点直接调用 AI
-    - AGENT_PROMPT: 返回提示词供外部执行（当前实现）
-    - AGENT_AUTO: Agent 自主编排执行（新增）
+    鏀寔澶氱鎵ц妯″紡:
+    - LOCAL: 淇濇寔鍘熸湁鍥哄畾娴佺▼
+    - DIRECT: 鍦ㄧ壒瀹氳妭鐐圭洿鎺ヨ皟鐢?AI
+    - AGENT_PROMPT: 杩斿洖鎻愮ず璇嶄緵澶栭儴鎵ц锛堝綋鍓嶅疄鐜帮級
+    - AGENT_AUTO: Agent 鑷富缂栨帓鎵ц锛堟柊澧烇級
     """
 
     def __init__(
@@ -57,10 +57,10 @@ class HybridAgentOrchestrator:
         sample_repository,
         local_field_rule_service,
         ai_chat_client,
-        # 原有服务
+        # 鍘熸湁鏈嶅姟
         agent_router_service=None,
         agent_prompt_service=None,
-        # Agent 执行器（新增）
+        # Agent 鎵ц鍣紙鏂板锛?
         react_executor=None,
     ):
         self._planning_service = planning_service
@@ -80,7 +80,7 @@ class HybridAgentOrchestrator:
         config: ExecutionConfig | None = None,
         **kwargs,
     ) -> PlanningDraft:
-        """构建场景和数据草稿"""
+        """鏋勫缓鍦烘櫙鍜屾暟鎹崏绋?""
         config = config or ExecutionConfig()
 
         if config.mode == ExecutionMode.AGENT_AUTO:
@@ -88,7 +88,7 @@ class HybridAgentOrchestrator:
                 requirement_text, interfaces, config, **kwargs
             )
         else:
-            # 保持原有逻辑
+            # 淇濇寔鍘熸湁閫昏緫
             return self._build_draft_traditional(
                 requirement_text,
                 interfaces,
@@ -102,7 +102,7 @@ class HybridAgentOrchestrator:
         config: ExecutionConfig | None = None,
         **kwargs,
     ) -> GenerationReport:
-        """生成测试数据"""
+        """鐢熸垚娴嬭瘯鏁版嵁"""
         config = config or ExecutionConfig()
 
         if config.mode == ExecutionMode.AGENT_AUTO:
@@ -116,7 +116,7 @@ class HybridAgentOrchestrator:
                 **kwargs,
             )
 
-    # ========== Agent Auto 模式实现 ==========
+    # ========== Agent Auto 妯″紡瀹炵幇 ==========
 
     def _build_draft_agent(
         self,
@@ -125,27 +125,27 @@ class HybridAgentOrchestrator:
         config: ExecutionConfig,
         **kwargs,
     ) -> PlanningDraft:
-        """Agent 自主模式构建草稿"""
+        """Agent 鑷富妯″紡鏋勫缓鑽夌"""
 
         if self._react_executor is None:
             raise RuntimeError(
                 "ReAct executor not initialized. Cannot use AGENT_AUTO mode."
             )
 
-        # 1. 准备上下文
+        # 1. 鍑嗗涓婁笅鏂?
         context = self._prepare_context(requirement_text, interfaces, **kwargs)
 
-        # 2. 构建 Agent 任务
-        task = """请分析业务需求和接口信息，设计合适的测试场景。
+        # 2. 鏋勫缓 Agent 浠诲姟
+        task = """璇峰垎鏋愪笟鍔￠渶姹傚拰鎺ュ彛淇℃伅锛岃璁″悎閫傜殑娴嬭瘯鍦烘櫙銆?
 
-你需要:
-1. 理解接口的 SQL 链路和数据依赖
-2. 设计覆盖核心场景的测试用例
-3. 考虑边界情况和异常场景
+浣犻渶瑕?
+1. 鐞嗚В鎺ュ彛鐨?SQL 閾捐矾鍜屾暟鎹緷璧?
+2. 璁捐瑕嗙洊鏍稿績鍦烘櫙鐨勬祴璇曠敤渚?
+3. 鑰冭檻杈圭晫鎯呭喌鍜屽紓甯稿満鏅?
 
-请直接调用工具完成分析和建议。"""
+璇风洿鎺ヨ皟鐢ㄥ伐鍏峰畬鎴愬垎鏋愬拰寤鸿銆?""
 
-        # 3. 执行 Agent
+        # 3. 鎵ц Agent
         result = self._react_executor.execute(
             task=task,
             context=context,
@@ -153,12 +153,12 @@ class HybridAgentOrchestrator:
         )
 
         if not result.success and config.fallback_to_local:
-            # 回退到本地模式
+            # 鍥為€€鍒版湰鍦版ā寮?
             return self._build_draft_traditional(
                 requirement_text, interfaces, **kwargs
             )
 
-        # 4. 解析结果
+        # 4. 瑙ｆ瀽缁撴灉
         return self._parse_agent_result_draft(result, context)
 
     def _generate_agent(
@@ -168,38 +168,101 @@ class HybridAgentOrchestrator:
         config: ExecutionConfig,
         **kwargs,
     ) -> GenerationReport:
-        """Agent 自主模式生成数据"""
+        """Agent 鑷富妯″紡鐢熸垚鏁版嵁"""
 
         if self._react_executor is None:
             raise RuntimeError(
                 "ReAct executor not initialized. Cannot use AGENT_AUTO mode."
             )
 
-        # 1. 准备上下文
+        # 1. 鍑嗗涓婁笅鏂?
         context = self._prepare_context(requirement_text, interfaces, **kwargs)
 
-        # 2. 添加数据生成相关上下文
+        # 2. 娣诲姞鏁版嵁鐢熸垚鐩稿叧涓婁笅鏂?
         context["data_requirements"] = self._prepare_data_requirements(interfaces)
 
-        # 3. 构建 Agent 任务
-        task = """请基于以下业务需求和接口信息，完成测试数据生成。
+        # 鑾峰彇琛ㄥ悕鍒楄〃渚涗换鍔′娇鐢?
+        table_names = [info["name"] for info in context.get("data_requirements", [])]
 
-你需要:
-1. 分析表结构和数据依赖
-2. 设计测试场景
-3. 生成符合业务规则的测试数据
-4. 验证数据质量
+        # 3. 鏋勫缓鍒嗛樁娈?Agent 浠诲姟
+        # 鍙傝€?Java 椤圭洰 TestMultiAPIDataGen.java 鐨勬彁绀鸿瘝璁捐
+        task = f"""浣犳槸涓€浣嶈祫娣遍噾铻嶅弽娲楅挶娴嬭瘯鏋舵瀯甯堬紝绮鹃€氭暟鎹簱璁捐鍜孉PI娴嬭瘯鐨勪笟鍔°€?
 
-请直接调用工具完成数据生成。"""
+## 涓氬姟闇€姹?
+{requirement_text}
 
-        # 4. 执行 Agent
-        result = self._react_executor.execute(
-            task=task,
-            context=context,
-            max_turns=config.max_agent_turns,
-        )
+## 涓氬姟绾︽潫:
+1. 鍚屼竴涓鎴锋湁棰勮蹇呴』鏈変氦鏄擄紙1:N锛?
+2. 鍚屼竴涓鎴锋湁妗堜緥蹇呴』鏈夐璀︼紙1:N锛?
+
+## 浠诲姟锛氬垎闃舵瀹屾垚娴嬭瘯鏁版嵁鐢熸垚
+
+### 闃舵1锛氱敓鎴愭祴璇曞満鏅紙蹇呴』鎵ц锛?
+璇蜂娇鐢?build_table_plans_local 宸ュ叿璁捐娴嬭瘯鍦烘櫙锛岀敓鎴?-5涓狿0绾у埆鐨勬祴璇曞満鏅€?
+姣忎釜鍦烘櫙闇€瑕佸寘鍚細
+- name: 鍦烘櫙鍚嶇О
+- description: 鍦烘櫙鎻忚堪
+- tableRequirements: 鏁版嵁闇€姹傛弿杩帮紝濡?"aml_f_tidb_model_result": "鐢熸垚2020-12-27鐨勯璀﹁褰?
+
+### 闃舵2锛氶噰鏍峰拰鍒嗘瀽鏁版嵁鐗瑰緛锛堝繀椤绘墽琛岋級
+璇蜂娇鐢?sample_table_data 宸ュ叿閲囨牱涓氬姟鏁版嵁锛岀劧鍚庡垎鏋愭瘡涓〃鐨勬暟鎹壒寰併€?
+璇蜂娇鐢ㄤ互涓嬫牸寮忚緭鍑哄垎鏋愮粨鏋滐細
+{{
+  "data_analysis": [
+    {{"table": "琛ㄥ悕", "analysis": "鍒嗘瀽缁撴灉鎻忚堪"}}
+  ]
+}}
+
+### 闃舵3锛氱敓鎴愭祴璇曟暟鎹紙蹇呴』鎵ц锛?
+鍩轰簬闃舵1鐨勫満鏅拰闃舵2鐨勬暟鎹垎鏋愶紝浣跨敤 generate_table_rows_local 宸ュ叿鐢熸垚娴嬭瘯鏁版嵁銆?
+
+### 闃舵4锛氭覆鏌揝QL锛堝繀椤绘墽琛岋級
+浣跨敤 render_insert_sql 宸ュ叿灏嗙敓鎴愮殑鏁版嵁娓叉煋涓?INSERT SQL 璇彞銆?
+璋冪敤鏂瑰紡: render_insert_sql(table_name="琛ㄥ悕", rows=[{{"瀛楁鍚?: "鍊?}}])
+
+## 杈撳嚭鏍煎紡瑕佹眰
+鏈€缁堝繀椤昏繑鍥炰互涓嬫牸寮忕殑缁撴灉锛?
+```json
+{{
+  "scenarios": [
+    {{"name": "鍦烘櫙鍚?, "description": "鎻忚堪", "tableRequirements": {{"琛ㄥ悕": "闇€姹傛弿杩?}}}}
+  ],
+  "data_analysis": [
+    {{"table": "琛ㄥ悕", "analysis": "鍒嗘瀽缁撴灉"}}
+  ],
+  "generated_tables": [
+    {{"table_name": "琛ㄥ悕", "rows": [{{"瀛楁鍚?: "鍊?}}], "sqls": ["INSERT INTO ..."]}}
+  ]
+}}
+```
+
+## 閲嶈鎻愰啋
+1. 蹇呴』鎸夐『搴忔墽琛?涓樁娈碉紝涓嶈兘璺宠繃浠讳綍闃舵
+2. 闃舵1鐢熸垚鍦烘櫙鍚庯紝涓嶈鐩存帴杩涘叆闃舵3锛屽繀椤诲厛瀹屾垚闃舵2鐨勬暟鎹垎鏋?
+3. 姣忎釜闃舵閮藉繀椤昏皟鐢ㄧ浉搴旂殑宸ュ叿
+4. 濡傛灉涓嶈皟鐢?render_insert_sql锛屾暟鎹皢鏃犳硶淇濆瓨"""
+
+        # 4. 鎵ц Agent
+        print(f"       [Agent] 寮€濮嬫墽琛屼换鍔?(鏈€澶?{config.max_agent_turns} 杞?...")
+        try:
+            result = self._react_executor.execute(
+                task=task,
+                context=context,
+                max_turns=config.max_agent_turns,
+            )
+        except Exception as e:
+            print(f"       [Agent] 鎵ц寮傚父: {e}")
+            if config.fallback_to_local:
+                print(f"       [Agent] 寮傚父鍥為€€鍒版湰鍦版ā寮?)
+                return self._generate_traditional(
+                    requirement_text, interfaces, **kwargs
+                )
+            raise
+
+        print(f"       [Agent] 鎵ц瀹屾垚: success={result.success}, tool_calls={len(result.tool_calls)}, final_output_len={len(result.final_output or '')}, error={result.error}")
 
         if not result.success and config.fallback_to_local:
+            print(f"       [Agent] 鎵ц澶辫触锛屽洖閫€鍒版湰鍦版ā寮?(fallback_to_local=True)")
             return self._generate_traditional(
                 requirement_text, interfaces, **kwargs
             )
@@ -212,18 +275,18 @@ class HybridAgentOrchestrator:
         interfaces: list[InterfaceTarget],
         **kwargs,
     ) -> dict:
-        """准备 Agent 上下文"""
+        """鍑嗗 Agent 涓婁笅鏂?""
 
-        # 收集接口信息
+        # 鏀堕泦鎺ュ彛淇℃伅
         interface_infos = [
             self._interface_trace_service.get_table_info(item.name, item.path)
             for item in interfaces
         ]
 
-        # 收集表结构
+        # 鏀堕泦琛ㄧ粨鏋?
         schemas = self._schema_service.get_all_table_schemas(interface_infos)
 
-        # 收集本地字段规则
+        # 鏀堕泦鏈湴瀛楁瑙勫垯
         local_fields_by_table = {}
         for table_name, schema in schemas.items():
             local_fields_by_table[table_name] = sorted(
@@ -278,41 +341,41 @@ class HybridAgentOrchestrator:
         }
 
     def _prepare_data_requirements(self, interfaces: list[InterfaceTarget]) -> dict:
-        """准备数据生成需求"""
-        # 可以从 PlanningService 获取已有的数据计划作为参考
+        """鍑嗗鏁版嵁鐢熸垚闇€姹?""
+        # 鍙互浠?PlanningService 鑾峰彇宸叉湁鐨勬暟鎹鍒掍綔涓哄弬鑰?
         return {}
 
     def _parse_agent_result_draft(
         self, result, context: dict
     ) -> PlanningDraft:
-        """解析 Agent 执行结果（草稿）"""
+        """瑙ｆ瀽 Agent 鎵ц缁撴灉锛堣崏绋匡級"""
         import json
         from api_data_gen.domain.models import RequirementSummary, ScenarioDraft
 
-        # 从上下文中提取基本信息
+        # 浠庝笂涓嬫枃涓彁鍙栧熀鏈俊鎭?
         requirement = RequirementSummary(
             summary=context.get("requirement", ""),
             constraints=[],
             keywords=[],
         )
 
-        # 从 Agent 结果中提取场景
+        # 浠?Agent 缁撴灉涓彁鍙栧満鏅?
         scenarios = []
         table_plans = []
 
-        # 1. 尝试从 final_output 解析
+        # 1. 灏濊瘯浠?final_output 瑙ｆ瀽
         if result.final_output:
             scenarios, table_plans = self._extract_scenarios_from_output(
                 result.final_output, context
             )
 
-        # 2. 如果 final_output 没有场景，尝试从 tool_calls 解析
+        # 2. 濡傛灉 final_output 娌℃湁鍦烘櫙锛屽皾璇曚粠 tool_calls 瑙ｆ瀽
         if not scenarios:
             scenarios, table_plans = self._extract_scenarios_from_tool_calls(
                 result.tool_calls, context
             )
 
-        # 构建执行摘要
+        # 鏋勫缓鎵ц鎽樿
         executed_skills = [
             AgentSkillExecution(
                 skill_name=tc.tool_name,
@@ -321,7 +384,7 @@ class HybridAgentOrchestrator:
             for tc in result.tool_calls
         ]
 
-        # 返回 PlanningDraft
+        # 杩斿洖 PlanningDraft
         return PlanningDraft(
             requirement=requirement,
             scenarios=scenarios,
@@ -335,7 +398,7 @@ class HybridAgentOrchestrator:
     def _parse_agent_result_generate(
         self, result, context: dict
     ) -> GenerationReport:
-        """解析 Agent 执行结果（生成）"""
+        """瑙ｆ瀽 Agent 鎵ц缁撴灉锛堢敓鎴愶級"""
         import json
         from api_data_gen.domain.models import RequirementSummary, GeneratedTable, ScenarioGeneration
 
@@ -345,23 +408,23 @@ class HybridAgentOrchestrator:
             keywords=[],
         )
 
-        # 从 Agent 结果中提取生成的数据
+        # 浠?Agent 缁撴灉涓彁鍙栫敓鎴愮殑鏁版嵁
         generated_tables = []
         scenario_generations = []
 
-        # 尝试从 final_output 解析
+        # 灏濊瘯浠?final_output 瑙ｆ瀽
         if result.final_output:
             generated_tables, scenario_generations = self._extract_generated_data(
                 result.final_output, context
             )
 
-        # 如果 final_output 没有数据，尝试从 tool_calls 解析
+        # 濡傛灉 final_output 娌℃湁鏁版嵁锛屽皾璇曚粠 tool_calls 瑙ｆ瀽
         if not generated_tables:
             generated_tables, scenario_generations = self._extract_generated_data_from_tools(
                 result.tool_calls, context
             )
 
-        # 构建执行摘要
+        # 鏋勫缓鎵ц鎽樿
         executed_skills = [
             AgentSkillExecution(
                 skill_name=tc.tool_name,
@@ -387,13 +450,13 @@ class HybridAgentOrchestrator:
     def _extract_scenarios_from_output(
         self, output: str, context: dict
     ) -> tuple[list, list]:
-        """从输出中提取场景"""
+        """浠庤緭鍑轰腑鎻愬彇鍦烘櫙"""
         import json
         scenarios = []
 
-        # 尝试解析 JSON
+        # 灏濊瘯瑙ｆ瀽 JSON
         try:
-            # 查找 JSON 数组
+            # 鏌ユ壘 JSON 鏁扮粍
             import re
             json_match = re.search(r'\[[\s\S]*\]', output)
             if json_match:
@@ -402,8 +465,8 @@ class HybridAgentOrchestrator:
                     for i, item in enumerate(data):
                         if isinstance(item, dict):
                             scenarios.append(ScenarioDraft(
-                                id=item.get("id", f"agent_scenario_{i}"),
-                                title=item.get("title", item.get("name", f"Scenario {i}")),
+                                id=item.get("id", f"agent鍦烘櫙_{i}"),
+                                title=item.get("title", item.get("name", f"鍦烘櫙 {i}")),
                                 api_name=item.get("api_name", "unknown"),
                                 api_path=item.get("api_path", ""),
                                 objective=item.get("description", item.get("objective", "")),
@@ -421,7 +484,7 @@ class HybridAgentOrchestrator:
     def _extract_scenarios_from_tool_calls(
         self, tool_calls: list, context: dict
     ) -> tuple[list, list]:
-        """从工具调用中提取场景"""
+        """浠庡伐鍏疯皟鐢ㄤ腑鎻愬彇鍦烘櫙"""
         scenarios = []
 
         for tc in tool_calls:
@@ -431,8 +494,8 @@ class HybridAgentOrchestrator:
                         for i, item in enumerate(tc.result):
                             if isinstance(item, dict):
                                 scenarios.append(ScenarioDraft(
-                                    id=item.get("id", f"agent_scenario_{i}"),
-                                    title=item.get("title", f"Scenario {i}"),
+                                    id=item.get("id", f"agent鍦烘櫙_{i}"),
+                                    title=item.get("title", f"鍦烘櫙 {i}"),
                                     api_name=item.get("api_name", "unknown"),
                                     api_path=item.get("api_path", ""),
                                     objective=item.get("objective", ""),
@@ -450,7 +513,7 @@ class HybridAgentOrchestrator:
     def _extract_generated_data(
         self, output: str, context: dict
     ) -> tuple[list, list]:
-        """从输出中提取生成的数据"""
+        """浠庤緭鍑轰腑鎻愬彇鐢熸垚鐨勬暟鎹?""
         import json
         from api_data_gen.domain.models import GeneratedTable, ScenarioGeneration
 
@@ -458,12 +521,12 @@ class HybridAgentOrchestrator:
 
         try:
             import re
-            # 尝试查找 JSON 对象
+            # 灏濊瘯鏌ユ壘 JSON 瀵硅薄
             json_match = re.search(r'\{[\s\S]*\}', output)
             if json_match:
                 data = json.loads(json_match.group())
                 if isinstance(data, dict):
-                    # 解析 generated_tables
+                    # 瑙ｆ瀽 generated_tables
                     tables_data = data.get("generated_tables", data.get("tables", []))
                     if isinstance(tables_data, list):
                         for table_data in tables_data:
@@ -472,6 +535,7 @@ class HybridAgentOrchestrator:
                                     table_name=table_data.get("table_name", "unknown"),
                                     rows=table_data.get("rows", []),
                                     sqls=table_data.get("sqls", []),
+                                    generation_source="ai",  # 鏍囪涓?AI 鐢熸垚
                                 ))
         except (json.JSONDecodeError, Exception):
             pass
@@ -481,7 +545,7 @@ class HybridAgentOrchestrator:
     def _extract_generated_data_from_tools(
         self, tool_calls: list, context: dict
     ) -> tuple[list, list]:
-        """从工具调用中提取生成的数据"""
+        """浠庡伐鍏疯皟鐢ㄤ腑鎻愬彇鐢熸垚鐨勬暟鎹?""
         import json
         from api_data_gen.domain.models import GeneratedTable, ScenarioGeneration
 
@@ -491,7 +555,7 @@ class HybridAgentOrchestrator:
             if tc.tool_name in ("generate_table_rows_ai", "render_insert_sql") and tc.result:
                 try:
                     if isinstance(tc.result, list):
-                        # 尝试确定表名
+                        # 灏濊瘯纭畾琛ㄥ悕
                         table_name = "unknown"
                         sqls = []
 
@@ -502,13 +566,14 @@ class HybridAgentOrchestrator:
                             table_name=table_name,
                             rows=tc.result if tc.tool_name == "generate_table_rows_ai" else [],
                             sqls=sqls,
+                            generation_source="ai",  # 鏍囪涓?AI 鐢熸垚
                         ))
                 except Exception:
                     pass
 
         return generated_tables, []
 
-    # ========== 传统模式（保持原有逻辑）==========
+    # ========== 浼犵粺妯″紡锛堜繚鎸佸師鏈夐€昏緫锛?=========
 
     def _build_draft_traditional(
         self,
@@ -518,7 +583,7 @@ class HybridAgentOrchestrator:
         fixed_values: list[str] | None = None,
         dependent_fixed_values: list[str] | None = None,
     ) -> PlanningDraft:
-        """传统模式构建草稿"""
+        """浼犵粺妯″紡鏋勫缓鑽夌"""
         local_draft = self._planning_service.build_draft(
             requirement_text,
             interfaces,
@@ -614,7 +679,7 @@ class HybridAgentOrchestrator:
         fixed_values: list[str] | None = None,
         dependent_fixed_values: list[str] | None = None,
     ) -> GenerationReport:
-        """传统模式生成数据"""
+        """浼犵粺妯″紡鐢熸垚鏁版嵁"""
         local_draft = self._planning_service.build_draft(
             requirement_text,
             interfaces,
@@ -722,3 +787,4 @@ class HybridAgentOrchestrator:
             ),
             agent_bundle=agent_bundle,
         )
+

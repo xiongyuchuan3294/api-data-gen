@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import unittest
 
@@ -14,14 +14,14 @@ class AgentRouterServiceTest(unittest.TestCase):
 
         prompt = service.build_prompt(
             operation="generate",
-            requirement=RequirementSummary(summary="复杂跨表测试", constraints=["需要多场景"], keywords=["agent"]),
+            requirement=RequirementSummary(summary="澶嶆潅璺ㄨ〃娴嬭瘯", constraints=["闇€瑕佸鍦烘櫙"], keywords=["agent"]),
             interfaces=[InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo")],
             interface_infos=[InterfaceInfo(name="custTransInfo", path="/wst/custTransInfo", sql_infos=[SqlInfo("table_a", ["cust_id='1'"])])],
             schemas={
                 "table_a": TableSchema(
                     table_name="table_a",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "瀹㈡埛鍙?, False, False, 18)],
                     primary_keys=[],
                 )
             },
@@ -47,3 +47,4 @@ class AgentRouterServiceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

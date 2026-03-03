@@ -1,0 +1,20 @@
+# 测试需求：微闪贴预警客户交易信息查询
+
+## 场景描述
+查询客户号为 962020122711000002 的微闪贴预警交易信息，预警日期为 2020-12-20，模型编号为 WSTY001。
+
+## 接口信息
+- 接口路径：/aml/wst/custTransInfo
+- 请求参数：custId=962020122711000002, caseDate=2020-12-27, modelNo=WSTY001
+
+## 数据生成需求
+需要生成以下测试数据：
+1. 模型结果表（aml_f_tidb_model_result）：2条记录
+2. 交易信息表（aml_f_wst_alert_cust_trans_info）：10条记录
+3. 票据背书记录表（aml_f_wst_alert_cust_drft_record）：10条记录
+
+## 约束条件
+- cust_id 固定为 962020122711000002
+- model_key 固定为 WSTY001
+- alert_date 固定为 2020-12-20
+- receive_pay_cd 需要轮换使用字典值（收/01、付/02）

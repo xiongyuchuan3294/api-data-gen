@@ -1,7 +1,6 @@
 pyproject.toml
 docs/phase1-bootstrap.md
 src/api_data_gen/__init__.py
-src/api_data_gen/agent_config.py
 src/api_data_gen/config.py
 src/api_data_gen.egg-info/PKG-INFO
 src/api_data_gen.egg-info/SOURCES.txt

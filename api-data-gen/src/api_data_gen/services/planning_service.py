@@ -131,7 +131,7 @@ class PlanningService:
         scenarios = [
             ScenarioDraft(
                 id=f"{target.name}:baseline",
-                title=f"{target.name} baseline replay",
+                title=f"{target.name} 基线回放",
                 api_name=target.name,
                 api_path=target.path,
                 objective="回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
@@ -150,7 +150,7 @@ class PlanningService:
             scenarios.append(
                 ScenarioDraft(
                     id=f"{target.name}:pagination",
-                    title=f"{target.name} pagination stability",
+                    title=f"{target.name} 分页稳定性",
                     api_name=target.name,
                     api_path=target.path,
                     objective="在不改变业务过滤条件的前提下验证分页参数变化。",
@@ -173,14 +173,14 @@ class PlanningService:
             scenarios.append(
                 ScenarioDraft(
                     id=f"{target.name}:dictionary",
-                    title=f"{target.name} dictionary consistency",
+                    title=f"{target.name} 字典一致性",
                     api_name=target.name,
                     api_path=target.path,
                     objective="验证码值字段只落在允许的字典候选集合中。",
                     request_inputs=request_inputs,
                     fixed_conditions=fixed_conditions,
                     assertions=[
-                        f"{column_name} must use one of {', '.join(values)}"
+                        f"{column_name} 必须使用以下值之一: {', '.join(values)}"
                         for column_name, values in dict_columns.items()
                     ],
                     tables=tables,
@@ -216,7 +216,7 @@ class PlanningService:
                         source="condition",
                         required=True,
                         suggested_values=_deduplicate(values_from_condition),
-                        rationale=f"Derived from SQL filters: {'; '.join(item['raw'] for item in condition_matches)}",
+                        rationale=f"来自SQL过滤器: {'; '.join(item['raw'] for item in condition_matches)}",
                     )
                 )
                 continue
@@ -228,7 +228,7 @@ class PlanningService:
                         source="generated",
                         required=True,
                         suggested_values=[],
-                        rationale="Primary key should be generated uniquely during insert rendering.",
+                        rationale="主键应在插入渲染时唯一生成。",
                     )
                 )
                 continue
@@ -240,7 +240,7 @@ class PlanningService:
                         source="dictionary",
                         required=not column.nullable,
                         suggested_values=dict_values[:sample_limit],
-                        rationale="Resolved from import/system dictionary mapping.",
+                        rationale="从导入/系统字典映射解析。",
                     )
                 )
                 continue
@@ -252,7 +252,7 @@ class PlanningService:
                         source="sample",
                         required=not column.nullable,
                         suggested_values=sample_values[column.name][:sample_limit],
-                        rationale="Observed in sampled business rows.",
+                        rationale="从采样的业务行中观察。",
                     )
                 )
                 continue
@@ -264,7 +264,7 @@ class PlanningService:
                         source="default",
                         required=True,
                         suggested_values=[_default_value_for_type(column.type)],
-                        rationale="Non-null column without sample or dictionary value.",
+                        rationale="非空列且没有样本或字典值。",
                     )
                 )
                 continue
@@ -275,7 +275,7 @@ class PlanningService:
                     source="optional",
                     required=False,
                     suggested_values=[],
-                    rationale="Nullable column without a fixed source in Phase 2 draft.",
+                    rationale="可空列且在Phase 2草稿中没有固定来源。",
                 )
             )
 

@@ -302,8 +302,18 @@ Final Answer: <最终结果>
             final_answer = final_answer_match.group(1).strip()
             is_complete = True
 
-        # 提取 Action
+        # 提取 Action - 支持多种格式
+        # 格式1: Action: tool_name
+        # 格式2: <invoke name="tool_name">
+        # 格式3: ```json\nAction: tool_name
         action_match = re.search(r"Action:\s*(\w+)", response)
+        if not action_match:
+            # 尝试 XML 标签格式
+            action_match = re.search(r'<invoke\s+name="([^"]+)"', response)
+        if not action_match:
+            # 尝试带反引号的格式
+            action_match = re.search(r'```\w*\s*Action:\s*(\w+)', response)
+
         action_name = action_match.group(1).strip() if action_match else ""
 
         # 提取 Action Input
@@ -313,8 +323,19 @@ Final Answer: <最终结果>
                 r"Action Input:\s*```(?:json)?\s*(.+?)```", response, re.DOTALL
             )
             if not input_match:
+                # 尝试不带代码块的格式
                 input_match = re.search(
                     r"Action Input:\s*(\{.+?\})", response, re.DOTALL
+                )
+            if not input_match:
+                # 尝试 XML 标签格式
+                input_match = re.search(
+                    r'<invoke\s+name=[^>]*>\s*<parameter name="arguments">(.+?)</parameter>', response, re.DOTALL
+                )
+            if not input_match:
+                # 尝试 JSON 在一行中
+                input_match = re.search(
+                    r'"arguments"\s*:\s*(\{.+?\})', response, re.DOTALL
                 )
 
             if input_match:

@@ -65,6 +65,14 @@ class DataGenerationService:
         use_ai_scenarios: bool = False,
         use_ai_data: bool = False,
     ) -> GenerationReport:
+        # 确定数据来源
+        if use_ai_data:
+            generation_source = "ai"
+        elif use_ai_scenarios:
+            generation_source = "hybrid"  # 场景是AI生成，数据是本地生成
+        else:
+            generation_source = "local"
+
         normalized_generation_tag = _normalize_generation_tag(generation_tag)
         try:
             draft = self._planning_service.build_draft(
@@ -81,13 +89,13 @@ class DataGenerationService:
         scenarios = draft.scenarios or [
             ScenarioDraft(
                 id="default",
-                title="default",
+                title="默认",
                 api_name="default",
                 api_path="",
-                objective="default generation",
+                objective="默认生成",
                 tables=[table_plan.table_name for table_plan in draft.table_plans],
                 table_requirements={
-                    table_plan.table_name: "default generation"
+                    table_plan.table_name: "默认生成"
                     for table_plan in draft.table_plans
                 },
             )
@@ -123,6 +131,7 @@ class DataGenerationService:
                     generation_tag=scenario_tag,
                     fixed_value_map=fixed_value_map,
                     ai_rows=ai_rows_by_table.get(table_plan.table_name, []),
+                    generation_source=generation_source,
                 )
                 scenario_tables.append(table_result)
                 scenario_checks.extend(record_checks)
@@ -223,6 +232,7 @@ class DataGenerationService:
         generation_tag: str | None,
         fixed_value_map: dict[str, str],
         ai_rows: list[dict[str, str]],
+        generation_source: str = "local",
     ) -> tuple[GeneratedTable, list[ValidationCheck]]:
         schema = self._schema_repository.get_table_schema(table_plan.table_name)
         rows = self.generate_table_rows(
@@ -240,6 +250,7 @@ class DataGenerationService:
                 insert_sql=[],
                 scenario_id=scenario.id,
                 scenario_title=scenario.title,
+                generation_source=generation_source,
             ),
             [],
         )

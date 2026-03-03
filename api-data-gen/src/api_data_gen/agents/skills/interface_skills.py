@@ -129,7 +129,7 @@ def build_table_plans_local(
                 "source": "condition",
                 "required": True,
                 "suggested_values": condition_values[column.name],
-                "rationale": f"Derived from SQL filter: {conditions}",
+                "rationale": f"来自SQL过滤器: {conditions}",
             })
             continue
 
@@ -140,7 +140,7 @@ def build_table_plans_local(
                 "source": "generated",
                 "required": True,
                 "suggested_values": [],
-                "rationale": "Primary key should be generated uniquely",
+                "rationale": "主键应唯一生成",
             })
             continue
 
@@ -153,7 +153,7 @@ def build_table_plans_local(
                     "source": "sample",
                     "required": not column.nullable,
                     "suggested_values": sample_values[:5],
-                    "rationale": "Observed in sampled business rows",
+                    "rationale": "从采样的业务行中观察",
                 })
                 continue
 

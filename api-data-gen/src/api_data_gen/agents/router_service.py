@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from api_data_gen.agents.skill_registry import default_skill_order, skill_catalog
 from api_data_gen.domain.models import AgentPromptSpec, AgentRoutingDecision, InterfaceInfo, InterfaceTarget, RequirementSummary, TableSchema
@@ -29,19 +29,19 @@ class AgentRouterService:
             for skill in skill_catalog(operation)
         ]
         user_prompt = (
-            f"任务类型: {operation}\n"
-            f"需求摘要: {requirement.summary}\n"
-            f"需求约束: {requirement.constraints or ['[none]']}\n"
-            f"关键词: {requirement.keywords or ['[none]']}\n"
-            f"固定值: {fixed_values or ['[none]']}\n"
-            f"依赖固定值: {dependent_fixed_values or ['[none]']}\n"
-            f"接口上下文:\n" + "\n".join(interface_lines) + "\n"
-            f"表结构与本地规则:\n" + "\n".join(schema_lines) + "\n"
-            f"可用技能:\n" + "\n".join(skill_lines) + "\n\n"
-            "请选择场景策略和造数策略，并给出建议技能顺序。\n"
-            "可选 scenario_strategy: local, ai, agent_decides\n"
-            "可选 data_strategy: local_only, local_then_ai, agent_decides\n"
-            "严格输出 JSON 对象，字段如下:\n"
+            f"浠诲姟绫诲瀷: {operation}\n"
+            f"闇€姹傛憳瑕? {requirement.summary}\n"
+            f"闇€姹傜害鏉? {requirement.constraints or ['[none]']}\n"
+            f"鍏抽敭璇? {requirement.keywords or ['[none]']}\n"
+            f"鍥哄畾鍊? {fixed_values or ['[none]']}\n"
+            f"渚濊禆鍥哄畾鍊? {dependent_fixed_values or ['[none]']}\n"
+            f"鎺ュ彛涓婁笅鏂?\n" + "\n".join(interface_lines) + "\n"
+            f"琛ㄧ粨鏋勪笌鏈湴瑙勫垯:\n" + "\n".join(schema_lines) + "\n"
+            f"鍙敤鎶€鑳?\n" + "\n".join(skill_lines) + "\n\n"
+            "璇烽€夋嫨鍦烘櫙绛栫暐鍜岄€犳暟绛栫暐锛屽苟缁欏嚭寤鸿鎶€鑳介『搴忋€俓n"
+            "鍙€?scenario_strategy: local, ai, agent_decides\n"
+            "鍙€?data_strategy: local_only, local_then_ai, agent_decides\n"
+            "涓ユ牸杈撳嚭 JSON 瀵硅薄锛屽瓧娈靛涓?\n"
             "{\n"
             '  "scenario_strategy": "local|ai|agent_decides",\n'
             '  "data_strategy": "local_only|local_then_ai|agent_decides",\n'
@@ -51,8 +51,8 @@ class AgentRouterService:
         )
         return AgentPromptSpec(
             name="route_generation_strategy",
-            purpose="让外部模型基于当前上下文选择场景策略、数据策略和 skill 顺序。",
-            system_prompt="你是一名测试数据编排 agent。你只能基于给定的本地技能和上下文做策略决策，不能假设额外工具。",
+            purpose="璁╁閮ㄦā鍨嬪熀浜庡綋鍓嶄笂涓嬫枃閫夋嫨鍦烘櫙绛栫暐銆佹暟鎹瓥鐣ュ拰 skill 椤哄簭銆?,
+            system_prompt="浣犳槸涓€鍚嶆祴璇曟暟鎹紪鎺?agent銆備綘鍙兘鍩轰簬缁欏畾鐨勬湰鍦版妧鑳藉拰涓婁笅鏂囧仛绛栫暐鍐崇瓥锛屼笉鑳藉亣璁鹃澶栧伐鍏枫€?,
             user_prompt=user_prompt,
             expected_output='{"scenario_strategy":"ai","data_strategy":"local_then_ai","selected_skills":["..."],"reasoning":["..."]}',
         )
@@ -67,3 +67,4 @@ class AgentRouterService:
             selected_skills=default_skill_order(operation, "local", "local_only"),
             reasoning=[reason],
         )
+
