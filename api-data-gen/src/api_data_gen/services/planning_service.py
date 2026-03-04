@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import json
 import re
 
@@ -66,6 +68,7 @@ class PlanningService:
                 conditions=_collect_table_conditions(interface_infos, table_name),
                 sample_rows=table_samples[table_name],
                 sample_limit=sample_limit,
+                requirement_text=requirement_text,
             )
             for table_name, schema in schemas.items()
         ]
@@ -229,6 +232,7 @@ class PlanningService:
         conditions: list[str],
         sample_rows: list[dict[str, str]],
         sample_limit: int,
+        requirement_text: str = "",
     ) -> TableDataPlan:
         parsed_conditions = _parse_conditions(conditions)
         sample_values = _collect_sample_values(sample_rows)
@@ -237,7 +241,13 @@ class PlanningService:
         for column in schema.columns:
             dict_values = self._dict_rule_resolver.resolve_code_values(column.name, column.comment)
             condition_matches = parsed_conditions.get(column.name, [])
-            values_from_condition = [item["value"] for item in condition_matches]
+            values_from_condition = _condition_suggested_values(
+                column=column,
+                condition_matches=condition_matches,
+                sample_values=sample_values,
+                sample_limit=sample_limit,
+                requirement_text=requirement_text,
+            )
             if values_from_condition:
                 column_plans.append(
                     ColumnPlan(
@@ -492,3 +502,240 @@ def _deduplicate(values: list[str]) -> list[str]:
             seen.add(value)
             ordered.append(value)
     return ordered
+
+
+def _condition_suggested_values(
+    column: TableColumn,
+    condition_matches: list[dict[str, str]],
+    sample_values: dict[str, list[str]],
+    sample_limit: int,
+    requirement_text: str = "",
+) -> list[str]:
+    direct_values = _deduplicate(
+        [str(item.get("value") or "").strip() for item in condition_matches if str(item.get("value") or "").strip()]
+    )
+    if not direct_values:
+        return []
+
+    operators = {str(item.get("operator") or "=").strip() for item in condition_matches}
+    if operators <= {"="}:
+        if _should_expand_temporal_equality_values(column=column, requirement_text=requirement_text):
+            expanded = list(direct_values)
+            for value in direct_values:
+                expanded.extend(_derive_equality_temporal_boundary_values(value))
+            return _deduplicate(expanded)[: max(2, sample_limit)]
+        return direct_values
+
+    candidate_values = list(direct_values)
+    for sample in sample_values.get(column.name, []):
+        sample_text = str(sample).strip()
+        if not sample_text:
+            continue
+        if any(
+            _satisfies_condition(sample_text, str(item.get("value") or ""), str(item.get("operator") or "="), column.type)
+            for item in condition_matches
+        ):
+            candidate_values.append(sample_text)
+
+    for item in condition_matches:
+        candidate_values.extend(
+            _derive_boundary_values(
+                bound=str(item.get("value") or "").strip(),
+                operator=str(item.get("operator") or "=").strip(),
+                data_type=column.type,
+            )
+        )
+
+    return _deduplicate(candidate_values)[: max(2, sample_limit)]
+
+
+def _satisfies_condition(value: str, bound: str, operator: str, data_type: str) -> bool:
+    if operator not in {"=", "<", "<=", ">", ">="}:
+        return False
+    value_dt = _parse_datetime_with_pattern(value)
+    bound_dt = _parse_datetime_with_pattern(bound)
+    if value_dt and bound_dt:
+        return _compare_values(value_dt[0], bound_dt[0], operator)
+
+    value_decimal = _parse_decimal(value)
+    bound_decimal = _parse_decimal(bound)
+    if value_decimal is not None and bound_decimal is not None:
+        return _compare_values(value_decimal, bound_decimal, operator)
+
+    if operator == "=":
+        return value == bound
+    return False
+
+
+def _derive_boundary_values(bound: str, operator: str, data_type: str) -> list[str]:
+    if operator not in {"<", "<=", ">", ">="}:
+        return []
+    if not bound:
+        return []
+
+    parsed_datetime = _parse_datetime_with_pattern(bound)
+    if parsed_datetime is not None:
+        dt_value, pattern = parsed_datetime
+        if operator == "<=":
+            return [_format_datetime_with_pattern(dt_value - timedelta(days=1), pattern)]
+        if operator == "<":
+            return [
+                _format_datetime_with_pattern(dt_value - timedelta(days=1), pattern),
+                _format_datetime_with_pattern(dt_value - timedelta(days=2), pattern),
+            ]
+        if operator == ">=":
+            return [_format_datetime_with_pattern(dt_value + timedelta(days=1), pattern)]
+        return [
+            _format_datetime_with_pattern(dt_value + timedelta(days=1), pattern),
+            _format_datetime_with_pattern(dt_value + timedelta(days=2), pattern),
+        ]
+
+    parsed_decimal = _parse_decimal(bound)
+    if parsed_decimal is not None:
+        step = Decimal("1")
+        if operator == "<=":
+            return [_format_decimal_with_scale(parsed_decimal - step, bound)]
+        if operator == "<":
+            return [
+                _format_decimal_with_scale(parsed_decimal - step, bound),
+                _format_decimal_with_scale(parsed_decimal - (step * 2), bound),
+            ]
+        if operator == ">=":
+            return [_format_decimal_with_scale(parsed_decimal + step, bound)]
+        return [
+            _format_decimal_with_scale(parsed_decimal + step, bound),
+            _format_decimal_with_scale(parsed_decimal + (step * 2), bound),
+        ]
+
+    return []
+
+
+def _should_expand_temporal_equality_values(column: TableColumn, requirement_text: str) -> bool:
+    if not _is_temporal_like_column(column):
+        return False
+    if not _has_recency_semantics(requirement_text):
+        return False
+    return _has_order_or_comparison_semantics(requirement_text)
+
+
+def _is_temporal_like_column(column: TableColumn) -> bool:
+    column_name = str(column.name or "").lower()
+    column_type = str(column.type or "").lower()
+    column_comment = str(column.comment or "").lower()
+    temporal_tokens = (
+        "date",
+        "time",
+        "timestamp",
+        "datetime",
+        "_dt",
+        "_tm",
+        "_ts",
+        "日期",
+        "时间",
+        "时点",
+        "更新",
+        "创建",
+    )
+    return any(token in column_name or token in column_type or token in column_comment for token in temporal_tokens)
+
+
+def _has_recency_semantics(requirement_text: str) -> bool:
+    lowered = str(requirement_text or "").lower()
+    recency_tokens = (
+        "最新",
+        "最近",
+        "取最新",
+        "latest",
+        "recent",
+        "most recent",
+        "newest",
+        "max",
+    )
+    return any(token in lowered for token in recency_tokens)
+
+
+def _has_order_or_comparison_semantics(requirement_text: str) -> bool:
+    lowered = str(requirement_text or "").lower()
+    compare_tokens = (
+        "<=",
+        ">=",
+        "<",
+        ">",
+        "小于等于",
+        "大于等于",
+        "不大于",
+        "不小于",
+        "before",
+        "after",
+        "earlier",
+        "later",
+        "order by",
+        "排序",
+        "降序",
+        "升序",
+    )
+    return any(token in lowered for token in compare_tokens)
+
+
+def _derive_equality_temporal_boundary_values(value: str) -> list[str]:
+    parsed_datetime = _parse_datetime_with_pattern(value)
+    if parsed_datetime is None:
+        return []
+    dt_value, pattern = parsed_datetime
+    return [_format_datetime_with_pattern(dt_value - timedelta(days=1), pattern)]
+
+
+def _parse_datetime_with_pattern(value: str) -> tuple[datetime, str] | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for pattern in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%Y%m%d",
+        "%Y-%m",
+        "%Y%m",
+    ):
+        try:
+            return datetime.strptime(text, pattern), pattern
+        except ValueError:
+            continue
+    return None
+
+
+def _format_datetime_with_pattern(value: datetime, pattern: str) -> str:
+    return value.strftime(pattern)
+
+
+def _parse_decimal(value: str) -> Decimal | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return Decimal(text)
+    except InvalidOperation:
+        return None
+
+
+def _format_decimal_with_scale(value: Decimal, original_text: str) -> str:
+    if "." not in original_text:
+        return str(int(value))
+    scale = len(original_text.split(".", 1)[1])
+    quantized = value.quantize(Decimal("1." + ("0" * scale)))
+    return f"{quantized:.{scale}f}"
+
+
+def _compare_values(left: object, right: object, operator: str) -> bool:
+    if operator == "=":
+        return left == right
+    if operator == "<":
+        return left < right
+    if operator == "<=":
+        return left <= right
+    if operator == ">":
+        return left > right
+    if operator == ">=":
+        return left >= right
+    return False

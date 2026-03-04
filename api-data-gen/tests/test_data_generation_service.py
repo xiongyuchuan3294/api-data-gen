@@ -205,6 +205,129 @@ class DataGenerationServiceTest(unittest.TestCase):
         self.assertEqual("DEMOTABL_002", rows[1].values["uuid"])
         self.assertEqual("962020122711000002", rows[0].values["cust_id"])
 
+    def test_condition_source_cycles_when_multiple_values_exist(self) -> None:
+        schema = TableSchema(
+            table_name="demo_table",
+            table_type="innodb",
+            columns=[TableColumn("alert_date", "varchar(10)", False, None, "", False, False, 10)],
+            primary_keys=[],
+        )
+        plan = TableDataPlan(
+            table_name="demo_table",
+            primary_keys=[],
+            row_hint=3,
+            column_plans=[
+                ColumnPlan("alert_date", "condition", True, ["2020-12-20", "2020-12-19"], ""),
+            ],
+        )
+
+        rows = self.service.generate_table_rows(plan, schema)
+
+        self.assertEqual("2020-12-20", rows[0].values["alert_date"])
+        self.assertEqual("2020-12-19", rows[1].values["alert_date"])
+        self.assertEqual("2020-12-20", rows[2].values["alert_date"])
+
+    def test_requirement_override_enforces_single_condition_value(self) -> None:
+        schema = TableSchema(
+            table_name="demo_table",
+            table_type="innodb",
+            columns=[TableColumn("alert_date", "varchar(10)", False, None, "", False, False, 10)],
+            primary_keys=[],
+        )
+        plan = TableDataPlan(
+            table_name="demo_table",
+            primary_keys=[],
+            row_hint=3,
+            column_plans=[
+                ColumnPlan("alert_date", "condition", True, ["2020-12-20", "2020-12-19"], ""),
+            ],
+        )
+
+        rows = self.service.generate_table_rows(
+            plan,
+            schema,
+            requirement_overrides={"alert_date": ["2020-12-20"]},
+        )
+
+        self.assertEqual("2020-12-20", rows[0].values["alert_date"])
+        self.assertEqual("2020-12-20", rows[1].values["alert_date"])
+        self.assertEqual("2020-12-20", rows[2].values["alert_date"])
+
+    def test_generate_applies_scenario_table_requirements_as_strong_overrides(self) -> None:
+        class _ScenarioRequirementPlanningService:
+            def build_draft(
+                self,
+                requirement_text: str,
+                interfaces: list[InterfaceTarget],
+                sample_limit: int = 3,
+                fixed_values: list[str] | None = None,
+                dependent_fixed_values: list[str] | None = None,
+                use_ai_scenarios: bool = False,
+            ) -> PlanningDraft:
+                return PlanningDraft(
+                    requirement=RequirementSummary(summary="scenario requirement overrides", constraints=[], keywords=[]),
+                    scenarios=[
+                        ScenarioDraft(
+                            id="scenario:baseline",
+                            title="baseline",
+                            api_name="demo",
+                            api_path="/demo",
+                            objective="baseline objective",
+                            tables=["demo_table"],
+                            table_requirements={"demo_table": "alert_date=2020-12-20"},
+                        ),
+                        ScenarioDraft(
+                            id="scenario:boundary",
+                            title="boundary",
+                            api_name="demo",
+                            api_path="/demo",
+                            objective="boundary objective",
+                            tables=["demo_table"],
+                            table_requirements={"demo_table": "alert_date=2020-12-10"},
+                        ),
+                    ],
+                    table_plans=[
+                        TableDataPlan(
+                            table_name="demo_table",
+                            primary_keys=["uuid"],
+                            row_hint=2,
+                            column_plans=[
+                                ColumnPlan("uuid", "generated", True, [], ""),
+                                ColumnPlan("alert_date", "condition", True, ["2020-12-20", "2020-12-19"], ""),
+                            ],
+                        )
+                    ],
+                )
+
+        class _ScenarioRequirementSchemaRepository:
+            def get_table_schema(self, table_name: str) -> TableSchema:
+                return TableSchema(
+                    table_name=table_name,
+                    table_type="innodb",
+                    columns=[
+                        TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64),
+                        TableColumn("alert_date", "varchar(10)", False, None, "", False, False, 10),
+                    ],
+                    primary_keys=["uuid"],
+                )
+
+        service = DataGenerationService(
+            planning_service=_ScenarioRequirementPlanningService(),
+            schema_repository=_ScenarioRequirementSchemaRepository(),
+            insert_render_service=InsertRenderService(),
+        )
+
+        report = service.generate(
+            requirement_text="scenario overrides",
+            interfaces=[InterfaceTarget(name="demo", path="/demo")],
+            sample_limit=2,
+        )
+
+        baseline_table = next(table for table in report.generated_tables if table.scenario_id == "scenario:baseline")
+        boundary_table = next(table for table in report.generated_tables if table.scenario_id == "scenario:boundary")
+        self.assertTrue(all(row.values["alert_date"] == "2020-12-20" for row in baseline_table.rows))
+        self.assertTrue(all(row.values["alert_date"] == "2020-12-10" for row in boundary_table.rows))
+
     def test_generation_tag_changes_generated_primary_keys(self) -> None:
         report = self.service.generate(
             requirement_text="Phase 3 local generation",
@@ -2057,4 +2180,3 @@ class DataGenerationServiceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

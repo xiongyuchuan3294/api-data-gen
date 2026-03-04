@@ -62,7 +62,15 @@ class AiScenarioService:
             max_output_tokens=_SCENARIO_MAX_OUTPUT_TOKENS,
         )
         scenarios = self._parse_scenarios(user_prompt, response)
-        issues = _multi_interface_issues(interface_infos, scenarios)
+        diversity_issues = (
+            _scenario_diversity_issues(scenarios, requirement_text=requirement_text) if len(interface_infos) > 1 else []
+        )
+        content_issues = _scenario_content_issues(scenarios)
+        issues = [
+            *_multi_interface_issues(interface_infos, scenarios),
+            *diversity_issues,
+            *content_issues,
+        ]
         if not issues:
             return scenarios
 
@@ -90,12 +98,22 @@ class AiScenarioService:
             max_output_tokens=_SCENARIO_MAX_OUTPUT_TOKENS,
         )
         repaired_scenarios = self._parse_scenarios(retry_prompt, retry_response)
-        retry_issues = _multi_interface_issues(interface_infos, repaired_scenarios)
-        if retry_issues:
+        retry_diversity_issues = (
+            _scenario_diversity_issues(repaired_scenarios, requirement_text=requirement_text)
+            if len(interface_infos) > 1
+            else []
+        )
+        retry_content_issues = _scenario_content_issues(repaired_scenarios)
+        hard_retry_issues = [
+            *_multi_interface_issues(interface_infos, repaired_scenarios),
+            *retry_content_issues,
+        ]
+        if hard_retry_issues:
             raise ValueError(
                 "AI scenario generation did not satisfy multi-interface coverage: "
-                + "; ".join(retry_issues)
+                + "; ".join(hard_retry_issues)
             )
+        # Diversity issues are soft constraints: force one retry, then continue with best-effort result.
         return repaired_scenarios
 
     def _build_prompt(
@@ -137,6 +155,8 @@ class AiScenarioService:
                     "5. CRITICAL: When a scenario description says an interface 'returns data' or similar, the scenario MUST include that interface's main business table in its tables list.",
                     "6. CRITICAL: When a scenario description says an interface 'returns empty' or 'no data', the scenario should still include other interfaces' tables that DO return data.",
                     "7. Prefer scenarios that connect shared tables, upstream/downstream tables, and reusable cross-table relations.",
+                    "8. Scenarios must be mutually distinguishable. Do not output two scenarios with nearly identical business objective, key filter pattern, and expected interface outcomes.",
+                    "9. If one scenario is a normal hit baseline, the remaining scenarios must prioritize different branches such as boundary/edge, competing-order candidates, or non-hit/no-data behavior.",
                 ]
             )
         sections.extend(
@@ -155,11 +175,16 @@ class AiScenarioService:
                 "5. Do not output explanations outside the compact lines or JSON array.",
                 "6. CRITICAL: The tables list in each scenario MUST match the scenario description. If description mentions an interface returning data, include that interface's table.",
                 "7. Scenario names must reflect the concrete test point. Do not use generic names like 'AI scenario 1'.",
+                "8. The scenario set must include boundary-condition coverage, such as empty/no-data branches, threshold edges, date/time window edges, ordering/recency edges, pagination limits, or optional-field missing cases, chosen according to the given requirement and SQL semantics.",
+                "9. Scenario logic must be derived from requirement semantics, not by blindly copying SQL literal filters.",
+                "10. For each core business function, cover three data branches when applicable: qualifying data, boundary-edge data, and non-qualifying/no-hit data.",
+                "11. Scenario de-duplication rule: each scenario must differ in at least one of the following dimensions: branch type, key condition pattern, temporal candidate set, or expected per-interface hit/no-hit outcome.",
+                "12. For recency/order-by-time semantics, include a scenario with multiple temporal candidates and explicitly indicate which candidate is expected to win and which is expected to lose.",
             ]
         )
         if is_multi_interface:
             sections.append(
-                "8. Do not split each interface into an isolated baseline scenario when a joint scenario can cover them together."
+                "13. Do not split each interface into an isolated baseline scenario when a joint scenario can cover them together."
             )
         return "\n".join(sections)
 
@@ -359,6 +384,167 @@ def _required_tables_by_interface(
 
 def _interface_label(interface: InterfaceInfo) -> str:
     return interface.name or interface.path or "[unknown]"
+
+
+def _scenario_diversity_issues(scenarios: list[ScenarioDraft], requirement_text: str = "") -> list[str]:
+    if len(scenarios) < 2:
+        if _requires_branch_pair(requirement_text):
+            return [
+                "Scenario set is too small for this requirement. Provide at least two orthogonal scenarios (for example baseline and boundary/recency or non-hit)."
+            ]
+        return []
+
+    issues: list[str] = []
+    branch_types = {_scenario_branch_type(scenario) for scenario in scenarios}
+    branch_types.discard("unknown")
+    if len(branch_types) < 2:
+        issues.append(
+            "Scenario branches are not diverse. Include at least two distinct branches such as qualifying, boundary-edge, or non-hit/no-data."
+        )
+
+    signatures = [_scenario_similarity_signature(scenario) for scenario in scenarios]
+    for left_index in range(len(signatures)):
+        for right_index in range(left_index + 1, len(signatures)):
+            table_similarity = _jaccard_similarity(signatures[left_index][0], signatures[right_index][0])
+            token_similarity = _jaccard_similarity(signatures[left_index][1], signatures[right_index][1])
+            if table_similarity >= 0.8 and token_similarity >= 0.82:
+                issues.append(
+                    f"Scenario {left_index + 1} and scenario {right_index + 1} are near-duplicates in tables and data characteristics; make them orthogonal."
+                )
+                return issues
+    return issues
+
+
+def _scenario_content_issues(scenarios: list[ScenarioDraft]) -> list[str]:
+    issues: list[str] = []
+    for index, scenario in enumerate(scenarios, start=1):
+        if not scenario.table_requirements:
+            issues.append(
+                f"Scenario {index} has empty tableRequirements. Each scenario must provide concrete per-table data requirements."
+            )
+    return issues
+
+
+def _requires_branch_pair(requirement_text: str) -> bool:
+    text = str(requirement_text or "").lower()
+    tokens = (
+        "latest",
+        "recent",
+        "recency",
+        "order by",
+        "boundary",
+        "edge",
+        "threshold",
+        "最新",
+        "最近",
+        "排序",
+        "边界",
+        "临界",
+        "<=",
+        ">=",
+    )
+    return any(token in text for token in tokens)
+
+
+def _scenario_branch_type(scenario: ScenarioDraft) -> str:
+    text = " ".join(
+        [
+            str(scenario.title or ""),
+            str(scenario.objective or ""),
+            " ".join(str(value) for value in scenario.table_requirements.values()),
+        ]
+    ).lower()
+    no_hit_tokens = (
+        "no data",
+        "empty",
+        "no-hit",
+        "non-hit",
+        "not hit",
+        "non-qualifying",
+        "无数据",
+        "空结果",
+        "不命中",
+        "未命中",
+    )
+    boundary_tokens = (
+        "boundary",
+        "edge",
+        "latest",
+        "recent",
+        "order by",
+        "recency",
+        "candidate",
+        "competing",
+        "threshold",
+        "边界",
+        "临界",
+        "最新",
+        "最近",
+        "排序",
+        "候选",
+    )
+    qualifying_tokens = (
+        "qualifying",
+        "baseline",
+        "return data",
+        "returns data",
+        "hit data",
+        "core path",
+        "命中",
+        "有数据",
+        "主路径",
+        "正常返回",
+    )
+
+    if any(token in text for token in no_hit_tokens):
+        return "non_hit"
+    if any(token in text for token in boundary_tokens):
+        return "boundary"
+    if any(token in text for token in qualifying_tokens):
+        return "qualifying"
+    return "unknown"
+
+
+def _scenario_similarity_signature(scenario: ScenarioDraft) -> tuple[set[str], set[str]]:
+    tables = set(scenario.tables) or set(scenario.table_requirements)
+    text = " ".join(
+        [
+            str(scenario.objective or ""),
+            " ".join(str(value) for value in scenario.table_requirements.values()),
+        ]
+    ).lower()
+    tokens = set(re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]+", text))
+    stop_tokens = {
+        "and",
+        "or",
+        "the",
+        "a",
+        "an",
+        "with",
+        "for",
+        "to",
+        "of",
+        "is",
+        "are",
+        "in",
+        "on",
+        "at",
+        "接口",
+        "场景",
+        "数据",
+        "table",
+        "tables",
+    }
+    return tables, {token for token in tokens if token and token not in stop_tokens}
+
+
+def _jaccard_similarity(left: set[str], right: set[str]) -> float:
+    if not left and not right:
+        return 1.0
+    union = left | right
+    if not union:
+        return 0.0
+    return len(left & right) / len(union)
 
 
 def _parse_compact_scenarios(response: str, max_scenarios: int, prompt: str = "") -> list[ScenarioDraft]:

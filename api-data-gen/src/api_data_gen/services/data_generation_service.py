@@ -28,6 +28,11 @@ from api_data_gen.services.relation_strategy_validation_service import RelationS
 
 DEFAULT_MARKER = "[DEFAULT]"
 _UNRESOLVED = object()
+_REQUIREMENT_IN_RE = re.compile(r"`?([A-Za-z_][A-Za-z0-9_]*)`?\s+in\s*\(([^)]*)\)", re.IGNORECASE)
+_REQUIREMENT_EQ_RE = re.compile(
+    r"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*(?:=|:)\s*('(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|[^,;，；]+)",
+    re.IGNORECASE,
+)
 
 
 class DataGenerationService:
@@ -132,6 +137,10 @@ class DataGenerationService:
                 len(scenarios),
             )
             relevant_plans = _select_table_plans(draft.table_plans, scenario)
+            scenario_requirement_overrides = self._derive_scenario_requirement_overrides(
+                scenario=scenario,
+                relevant_plans=relevant_plans,
+            )
             self._persist_reusable_relation_strategies(scenario, relevant_plans)
             scenario_field_decisions = self._decide_ai_field_strategies_for_scenario(
                 requirement_text=requirement_text,
@@ -178,6 +187,7 @@ class DataGenerationService:
                     ai_advice=ai_advice,
                     generation_source=generation_source,
                     scenario_context=scenario_context,
+                    requirement_overrides=scenario_requirement_overrides.get(table_plan.table_name, {}),
                 )
                 scenario_tables.append(table_result)
                 _update_scenario_context(scenario_context, table_result)
@@ -559,6 +569,7 @@ class DataGenerationService:
         ai_advice: AiTableGenerationAdvice,
         generation_source: str = "local",
         scenario_context: dict[str, list[str | None]] | None = None,
+        requirement_overrides: dict[str, list[str]] | None = None,
     ) -> tuple[GeneratedTable, list[ValidationCheck]]:
         schema = self._schema_repository.get_table_schema(table_plan.table_name)
         field_generation_strategies = _resolve_table_generation_strategies(
@@ -568,6 +579,11 @@ class DataGenerationService:
             ai_advice=ai_advice,
             local_field_rule_service=self._local_field_rule_service,
         )
+        field_generation_strategies = _apply_requirement_overrides_to_generation_strategies(
+            schema=schema,
+            field_generation_strategies=field_generation_strategies,
+            requirement_overrides=requirement_overrides or {},
+        )
         rows = self.generate_table_rows(
             table_plan=table_plan,
             schema=schema,
@@ -576,6 +592,7 @@ class DataGenerationService:
             ai_advice=ai_advice,
             field_generation_strategies=field_generation_strategies,
             scenario_context=scenario_context,
+            requirement_overrides=requirement_overrides,
         )
         field_strategies = _resolve_table_field_strategies(field_generation_strategies)
         return (
@@ -593,6 +610,22 @@ class DataGenerationService:
             ),
             [],
         )
+
+    def _derive_scenario_requirement_overrides(
+        self,
+        scenario: ScenarioDraft,
+        relevant_plans: list[TableDataPlan],
+    ) -> dict[str, dict[str, list[str]]]:
+        overrides_by_table: dict[str, dict[str, list[str]]] = {}
+        for table_plan in relevant_plans:
+            requirement_text = str(scenario.table_requirements.get(table_plan.table_name, "") or "").strip()
+            if not requirement_text:
+                continue
+            schema = self._schema_repository.get_table_schema(table_plan.table_name)
+            parsed = _parse_requirement_overrides(requirement_text, schema)
+            if parsed:
+                overrides_by_table[table_plan.table_name] = parsed
+        return overrides_by_table
 
     def _render_validated_table(
         self,
@@ -631,10 +664,12 @@ class DataGenerationService:
         ai_advice: AiTableGenerationAdvice | None = None,
         field_generation_strategies: dict[str, FieldGenerationStrategy] | None = None,
         scenario_context: dict[str, list[str | None]] | None = None,
+        requirement_overrides: dict[str, list[str]] | None = None,
     ) -> list[GeneratedRow]:
         normalized_generation_tag = _normalize_generation_tag(generation_tag)
         ai_advice = ai_advice or AiTableGenerationAdvice(table_name=table_plan.table_name)
         scenario_context = scenario_context or {}
+        requirement_overrides = requirement_overrides or {}
         field_generation_strategies = field_generation_strategies or _resolve_table_generation_strategies(
             schema=schema,
             table_plan=table_plan,
@@ -671,6 +706,7 @@ class DataGenerationService:
                     generation_strategy=generation_strategy,
                     row_values=values,
                     scenario_context=scenario_context,
+                    requirement_override_values=requirement_overrides.get(column.name),
                 )
             for allow_fallback_generators in (False, True):
                 if not deferred_columns:
@@ -690,6 +726,7 @@ class DataGenerationService:
                         row_values=values,
                         scenario_context=scenario_context,
                         allow_fallback_generators=allow_fallback_generators,
+                        requirement_override_values=requirement_overrides.get(column.name),
                     )
                     if resolved_value is _UNRESOLVED:
                         unresolved_columns.append((column, column_plan))
@@ -710,6 +747,7 @@ class DataGenerationService:
                     row_values=values,
                     scenario_context=scenario_context,
                     allow_fallback_generators=True,
+                    requirement_override_values=requirement_overrides.get(column.name),
                 )
                 values[column.name] = None if resolved_value is _UNRESOLVED else resolved_value
             rows.append(GeneratedRow(values=values))
@@ -730,6 +768,7 @@ class DataGenerationService:
         row_values: dict[str, str | None] | None = None,
         scenario_context: dict[str, list[str | None]] | None = None,
         allow_fallback_generators: bool = True,
+        requirement_override_values: list[str] | None = None,
     ) -> str | None | object:
         if column_plan is None:
             return _fallback_value(column, row_index)
@@ -749,10 +788,14 @@ class DataGenerationService:
         if column.name in fixed_value_map:
             return fixed_value_map[column.name]
 
+        normalized_requirement_values = _normalize_requirement_override_values(requirement_override_values, column)
+        if normalized_requirement_values and not column.is_primary_key:
+            return _pick_cycle(normalized_requirement_values, row_index)
+
         if column.is_primary_key and source != "condition":
             return _generated_value(table_name, column, row_index, generation_tag)
         if source == "condition":
-            return values[0] if values else _fallback_value(column, row_index)
+            return _pick_cycle(values, row_index) if values else _fallback_value(column, row_index)
 
         if generation_strategy is not None:
             strategy_value = self._materialize_strategy_value(
@@ -982,6 +1025,128 @@ def _resolve_table_field_strategies(
         field_name: ("ai" if strategy.executor == "ai" else "local")
         for field_name, strategy in field_generation_strategies.items()
     }
+
+
+def _apply_requirement_overrides_to_generation_strategies(
+    schema: TableSchema,
+    field_generation_strategies: dict[str, FieldGenerationStrategy],
+    requirement_overrides: dict[str, list[str]],
+) -> dict[str, FieldGenerationStrategy]:
+    if not requirement_overrides:
+        return field_generation_strategies
+    column_by_name = {column.name: column for column in schema.columns}
+    updated = dict(field_generation_strategies)
+    for field_name, raw_values in requirement_overrides.items():
+        column = column_by_name.get(field_name)
+        if column is None or column.is_primary_key:
+            continue
+        values = _normalize_requirement_override_values(raw_values, column)
+        if not values:
+            continue
+        if len(values) == 1:
+            updated[field_name] = FieldGenerationStrategy(
+                executor="local",
+                generator="fixed_value",
+                params={"value": values[0]},
+                fallback_generators=[],
+                rationale="scenario table requirement override",
+            )
+            continue
+        updated[field_name] = FieldGenerationStrategy(
+            executor="local",
+            generator="condition_value",
+            params={"values": values},
+            fallback_generators=[],
+            rationale="scenario table requirement override",
+        )
+    return updated
+
+
+def _parse_requirement_overrides(requirement_text: str, schema: TableSchema) -> dict[str, list[str]]:
+    if not requirement_text:
+        return {}
+    column_by_lower_name = {column.name.lower(): column for column in schema.columns}
+    parsed: dict[str, list[str]] = {}
+
+    for match in _REQUIREMENT_IN_RE.finditer(requirement_text):
+        column_name = str(match.group(1) or "").strip()
+        column = column_by_lower_name.get(column_name.lower())
+        if column is None:
+            continue
+        values = [_clean_requirement_value(item) for item in _split_requirement_values(match.group(2) or "")]
+        values = [value for value in values if value]
+        normalized = _normalize_requirement_override_values(values, column)
+        if not normalized:
+            continue
+        parsed[column.name] = _merge_requirement_values(parsed.get(column.name, []), normalized)
+
+    for match in _REQUIREMENT_EQ_RE.finditer(requirement_text):
+        column_name = str(match.group(1) or "").strip()
+        column = column_by_lower_name.get(column_name.lower())
+        if column is None:
+            continue
+        value = _clean_requirement_value(match.group(2) or "")
+        normalized = _normalize_requirement_override_values([value], column)
+        if not normalized:
+            continue
+        parsed[column.name] = _merge_requirement_values(parsed.get(column.name, []), normalized)
+
+    return parsed
+
+
+def _split_requirement_values(raw_value_list: str) -> list[str]:
+    if not raw_value_list:
+        return []
+    return [part.strip() for part in re.split(r"[,\uFF0C]", raw_value_list) if part.strip()]
+
+
+def _clean_requirement_value(raw_value: str) -> str:
+    value = str(raw_value or "").strip()
+    if not value:
+        return ""
+    if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+        value = value[1:-1].strip()
+    value = value.strip().strip("`").strip()
+    value = value.replace("\\'", "'").replace('\\"', '"')
+    value = re.sub(r"\s*[（(][^()（）]*[)）]\s*$", "", value).strip()
+    return value
+
+
+def _normalize_requirement_override_values(values: list[str] | None, column: TableColumn) -> list[str]:
+    normalized: list[str] = []
+    for raw_value in values or []:
+        value = str(raw_value or "").strip()
+        if not value:
+            continue
+        if not _is_requirement_value_compatible_with_column(value, column):
+            continue
+        if value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
+def _is_requirement_value_compatible_with_column(value: str, column: TableColumn) -> bool:
+    lowered = column.type.lower()
+    if "datetime" in lowered or "timestamp" in lowered:
+        return _parse_datetime_value(value) is not None
+    if "date" in lowered:
+        return _parse_datetime_value(value) is not None
+    if lowered.startswith("time"):
+        return bool(re.fullmatch(r"\d{2}:\d{2}(?::\d{2})?", value))
+    if any(token in lowered for token in ("int", "decimal", "float", "double", "numeric")):
+        try:
+            float(value)
+        except ValueError:
+            return False
+    return True
+
+
+def _merge_requirement_values(existing: list[str], incoming: list[str]) -> list[str]:
+    merged = list(existing)
+    for value in incoming:
+        if value not in merged:
+            merged.append(value)
+    return merged
 
 
 def _resolve_table_generation_strategies(
@@ -1387,4 +1552,3 @@ def _fit_suffix(value: str, max_length: int) -> str:
     if max_length <= 0 or len(value) <= max_length:
         return value
     return value[-max_length:]
-

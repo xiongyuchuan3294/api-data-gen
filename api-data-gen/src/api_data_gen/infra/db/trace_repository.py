@@ -17,7 +17,7 @@ class TraceRepository:
             SELECT trace_id, url, method, request_body, query_params, status_code, start_time, end_time
             FROM {schema_name}.t_request_info
             WHERE url LIKE %s
-            ORDER BY update_time
+            ORDER BY update_time DESC
             LIMIT 1
         """
         row = self._client.fetch_one(query, (f"{url_prefix}%",))

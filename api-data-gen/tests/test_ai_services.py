@@ -44,6 +44,17 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual("ai", payload[0]["field_strategies"]["memo"])
         self.assertEqual("ok", payload[0]["data"][0]["memo"])
 
+    def test_parse_json_payload_ignores_trailing_non_json_text(self) -> None:
+        payload = parse_json_payload(
+            """
+            {"table":"table_a","field_strategies":{"memo":"ai"}}
+            extra diagnostic text that is not valid json
+            """
+        )
+
+        self.assertEqual("table_a", payload["table"])
+        self.assertEqual("ai", payload["field_strategies"]["memo"])
+
     def test_ai_scenario_service_parses_json_and_includes_fixed_values(self) -> None:
         client = _FakeAiChatClient(
             [
@@ -94,6 +105,9 @@ class AiServicesTest(unittest.TestCase):
         )
         self.assertIn("cust_id=962020122711000002", client.calls[0]["user_prompt"])
         self.assertIn("transactionkey depends on alert_date", client.calls[0]["user_prompt"])
+        self.assertIn("boundary-condition coverage", client.calls[0]["user_prompt"])
+        self.assertIn("derived from requirement semantics", client.calls[0]["user_prompt"])
+        self.assertIn("qualifying data, boundary-edge data, and non-qualifying/no-hit data", client.calls[0]["user_prompt"])
 
     def test_ai_scenario_service_accepts_compact_line_format(self) -> None:
         client = _FakeAiChatClient(
@@ -279,6 +293,238 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual(["shared_table", "table_a", "table_b"], scenarios[0].tables)
         self.assertEqual(2, len(client.calls))
         self.assertIn("Missing interface coverage", client.calls[1]["user_prompt"])
+
+    def test_ai_scenario_service_retries_when_scenarios_are_near_duplicates(self) -> None:
+        client = _FakeAiChatClient(
+            [
+                """
+                [
+                  {
+                    "name": "baseline-a",
+                    "description": "both interfaces return data on the core path",
+                    "tableRequirements": {
+                      "table_a": "cust_id='1' and result_date='2020-12-27'",
+                      "table_b": "cust_id='1' and alert_date='2020-12-20'"
+                    }
+                  },
+                  {
+                    "name": "baseline-b",
+                    "description": "both interfaces return data on the core path with same business features",
+                    "tableRequirements": {
+                      "table_a": "cust_id='1' and result_date='2020-12-27'",
+                      "table_b": "cust_id='1' and alert_date='2020-12-20'"
+                    }
+                  }
+                ]
+                """,
+                """
+                [
+                  {
+                    "name": "baseline",
+                    "description": "both interfaces return data on main path",
+                    "tableRequirements": {
+                      "table_a": "cust_id='1' and result_date='2020-12-27'",
+                      "table_b": "cust_id='1' and alert_date='2020-12-20'"
+                    }
+                  },
+                  {
+                    "name": "boundary-latest",
+                    "description": "multiple candidate dates with latest winner",
+                    "tableRequirements": {
+                      "table_a": "cust_id='1' and result_date in ('2020-12-27','2020-12-25')",
+                      "table_b": "cust_id='1' and alert_date in ('2020-12-20','2020-12-19')"
+                    }
+                  }
+                ]
+                """,
+            ]
+        )
+        service = AiScenarioService(client)
+
+        scenarios = service.generate(
+            requirement_text="generate differentiated multi-interface scenarios",
+            interface_infos=[
+                InterfaceInfo(
+                    name="apiA",
+                    path="/api/a",
+                    sql_infos=[SqlInfo("table_a", ["cust_id = '1'"])],
+                ),
+                InterfaceInfo(
+                    name="apiB",
+                    path="/api/b",
+                    sql_infos=[SqlInfo("table_b", ["cust_id = '1'"])],
+                ),
+            ],
+            schemas={
+                "table_a": TableSchema(
+                    table_name="table_a",
+                    table_type="innodb",
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
+                    primary_keys=[],
+                ),
+                "table_b": TableSchema(
+                    table_name="table_b",
+                    table_type="innodb",
+                    columns=[TableColumn("alert_date", "varchar(18)", False, None, "alert date", False, False, 18)],
+                    primary_keys=[],
+                ),
+            },
+        )
+
+        self.assertEqual(2, len(scenarios))
+        self.assertEqual(2, len(client.calls))
+        self.assertIn("Scenario branches are not diverse", client.calls[1]["user_prompt"])
+
+    def test_ai_scenario_service_retries_when_scenario_has_empty_table_requirements(self) -> None:
+        client = _FakeAiChatClient(
+            [
+                """
+                [
+                  {
+                    "name": "baseline",
+                    "description": "both interfaces return data",
+                    "tableRequirements": {
+                      "table_a": "generate 1 row",
+                      "table_b": "generate 1 row"
+                    }
+                  },
+                  {
+                    "name": "broken-boundary",
+                    "description": "boundary scenario",
+                    "tableRequirements": {}
+                  }
+                ]
+                """,
+                """
+                [
+                  {
+                    "name": "baseline",
+                    "description": "both interfaces return data",
+                    "tableRequirements": {
+                      "table_a": "generate 1 row",
+                      "table_b": "generate 1 row"
+                    }
+                  },
+                  {
+                    "name": "boundary",
+                    "description": "boundary with competing candidates",
+                    "tableRequirements": {
+                      "table_a": "generate 2 candidate-date rows",
+                      "table_b": "generate 2 candidate-date rows"
+                    }
+                  }
+                ]
+                """,
+            ]
+        )
+        service = AiScenarioService(client)
+
+        scenarios = service.generate(
+            requirement_text="generate differentiated multi-interface scenarios",
+            interface_infos=[
+                InterfaceInfo(
+                    name="apiA",
+                    path="/api/a",
+                    sql_infos=[SqlInfo("table_a", ["cust_id = '1'"])],
+                ),
+                InterfaceInfo(
+                    name="apiB",
+                    path="/api/b",
+                    sql_infos=[SqlInfo("table_b", ["cust_id = '1'"])],
+                ),
+            ],
+            schemas={
+                "table_a": TableSchema(
+                    table_name="table_a",
+                    table_type="innodb",
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
+                    primary_keys=[],
+                ),
+                "table_b": TableSchema(
+                    table_name="table_b",
+                    table_type="innodb",
+                    columns=[TableColumn("alert_date", "varchar(18)", False, None, "alert date", False, False, 18)],
+                    primary_keys=[],
+                ),
+            },
+        )
+
+        self.assertEqual(2, len(scenarios))
+        self.assertEqual(2, len(client.calls))
+        self.assertIn("empty tableRequirements", client.calls[1]["user_prompt"])
+
+    def test_ai_scenario_service_retries_when_recency_requirement_returns_only_one_scenario(self) -> None:
+        client = _FakeAiChatClient(
+            [
+                """
+                [
+                  {
+                    "name": "baseline",
+                    "description": "both interfaces return data",
+                    "tableRequirements": {
+                      "table_a": "generate 1 row",
+                      "table_b": "generate 1 row"
+                    }
+                  }
+                ]
+                """,
+                """
+                [
+                  {
+                    "name": "baseline",
+                    "description": "both interfaces return data",
+                    "tableRequirements": {
+                      "table_a": "generate 1 row",
+                      "table_b": "generate 1 row"
+                    }
+                  },
+                  {
+                    "name": "boundary-recency",
+                    "description": "multiple candidate dates with latest winner",
+                    "tableRequirements": {
+                      "table_a": "generate 2 date candidates",
+                      "table_b": "generate 2 date candidates"
+                    }
+                  }
+                ]
+                """,
+            ]
+        )
+        service = AiScenarioService(client)
+
+        scenarios = service.generate(
+            requirement_text="query latest alert record with boundary coverage",
+            interface_infos=[
+                InterfaceInfo(
+                    name="apiA",
+                    path="/api/a",
+                    sql_infos=[SqlInfo("table_a", ["cust_id = '1'"])],
+                ),
+                InterfaceInfo(
+                    name="apiB",
+                    path="/api/b",
+                    sql_infos=[SqlInfo("table_b", ["cust_id = '1'"])],
+                ),
+            ],
+            schemas={
+                "table_a": TableSchema(
+                    table_name="table_a",
+                    table_type="innodb",
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
+                    primary_keys=[],
+                ),
+                "table_b": TableSchema(
+                    table_name="table_b",
+                    table_type="innodb",
+                    columns=[TableColumn("alert_date", "varchar(18)", False, None, "alert date", False, False, 18)],
+                    primary_keys=[],
+                ),
+            },
+        )
+
+        self.assertEqual(2, len(scenarios))
+        self.assertEqual(2, len(client.calls))
+        self.assertIn("Scenario set is too small for this requirement", client.calls[1]["user_prompt"])
 
     def test_ai_scenario_service_repairs_invalid_json_once(self) -> None:
         client = _FakeAiChatClient(

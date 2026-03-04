@@ -20,6 +20,9 @@ def extract_json_text(text: str) -> str:
     )
     if first_brace == -1:
         return stripped
+    balanced = _extract_balanced_json_fragment(stripped, first_brace)
+    if balanced is not None:
+        return balanced
     return stripped[first_brace:].strip()
 
 
@@ -115,3 +118,40 @@ def _to_python_literal(text: str) -> str:
     python_style = re.sub(r"\btrue\b", "True", python_style)
     python_style = re.sub(r"\bfalse\b", "False", python_style)
     return python_style
+
+
+def _extract_balanced_json_fragment(text: str, start_index: int) -> str | None:
+    if start_index < 0 or start_index >= len(text):
+        return None
+
+    opening = text[start_index]
+    if opening not in "[{":
+        return None
+    closing = "]" if opening == "[" else "}"
+
+    in_string = False
+    escape = False
+    depth = 0
+
+    for index, char in enumerate(text[start_index:], start=start_index):
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+            continue
+        if char == opening:
+            depth += 1
+            continue
+        if char == closing:
+            depth -= 1
+            if depth == 0:
+                return text[start_index : index + 1].strip()
+
+    return None

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from api_data_gen.domain.models import AiTableGenerationAdvice, FieldGenerationStrategy, RelationRule, ScenarioDraft
 
-_SCENARIO_CACHE_VERSION = 3
+_SCENARIO_CACHE_VERSION = 8
 _FIELD_STRATEGY_CACHE_VERSION = 2
 _MAX_HINT_FIELDS = 24
 

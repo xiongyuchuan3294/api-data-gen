@@ -237,6 +237,65 @@ class PlanningServiceTest(unittest.TestCase):
         self.assertIn("cust_id = '962020122711000002'", baseline.fixed_conditions)
         self.assertTrue(any(rule.target_table == "aml_f_wst_alert_cust_trans_info" and rule.target_field == "cust_id" and rule.source_table == "aml_f_tidb_model_result" and rule.source_field == "cust_id" for rule in baseline.relation_rules))
 
+    def test_build_table_plan_expands_range_condition_to_boundary_candidates(self) -> None:
+        service = PlanningService(
+            settings=Settings(),
+            trace_repository=_FakeTraceRepository(),
+            interface_trace_service=_FakeInterfaceTraceService(),
+            schema_service=_FakeSchemaService(),
+            sample_repository=_FakeSampleRepository(),
+            dict_rule_resolver=_FakeDictRuleResolver(),
+            requirement_parser=RequirementParser(),
+        )
+        schema = TableSchema(
+            table_name="demo_table",
+            table_type="innodb",
+            columns=[TableColumn("alert_date", "varchar(10)", False, None, "", False, False, 10)],
+            primary_keys=[],
+        )
+
+        plan = service._build_table_plan(
+            table_name="demo_table",
+            schema=schema,
+            conditions=["alert_date <= '2020-12-20'"],
+            sample_rows=[],
+            sample_limit=3,
+        )
+
+        alert_date_plan = next(column_plan for column_plan in plan.column_plans if column_plan.column_name == "alert_date")
+        self.assertEqual("condition", alert_date_plan.source)
+        self.assertEqual(["2020-12-20", "2020-12-19"], alert_date_plan.suggested_values)
+
+    def test_build_table_plan_expands_temporal_equality_when_requirement_has_recency_semantics(self) -> None:
+        service = PlanningService(
+            settings=Settings(),
+            trace_repository=_FakeTraceRepository(),
+            interface_trace_service=_FakeInterfaceTraceService(),
+            schema_service=_FakeSchemaService(),
+            sample_repository=_FakeSampleRepository(),
+            dict_rule_resolver=_FakeDictRuleResolver(),
+            requirement_parser=RequirementParser(),
+        )
+        schema = TableSchema(
+            table_name="demo_table",
+            table_type="innodb",
+            columns=[TableColumn("alert_date", "varchar(10)", False, None, "", False, False, 10)],
+            primary_keys=[],
+        )
+
+        plan = service._build_table_plan(
+            table_name="demo_table",
+            schema=schema,
+            conditions=["alert_date = '2020-12-20'"],
+            sample_rows=[],
+            sample_limit=3,
+            requirement_text="查询预警日期 <= 案例日期下的最新预警日期交易",
+        )
+
+        alert_date_plan = next(column_plan for column_plan in plan.column_plans if column_plan.column_name == "alert_date")
+        self.assertEqual("condition", alert_date_plan.source)
+        self.assertEqual(["2020-12-20", "2020-12-19"], alert_date_plan.suggested_values)
+
     def test_build_draft_uses_ai_scenarios_when_enabled(self) -> None:
         ai_scenario_service = _FakeAiScenarioService()
         service = PlanningService(
