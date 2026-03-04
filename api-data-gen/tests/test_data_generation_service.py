@@ -8,19 +8,20 @@ from api_data_gen.domain.models import (
     AiTableGenerationAdvice,
     ColumnPlan,
     FieldGenerationStrategy,
-    FieldMatchRelation,
     InterfaceTarget,
+    RelationRule,
     PlanningDraft,
     RequirementSummary,
     ScenarioDraft,
+    StoredRelationStrategy,
     TableColumn,
     TableDataPlan,
     TableSchema,
 )
 from api_data_gen.services.data_generation_service import DataGenerationService
 from api_data_gen.services.insert_render_service import InsertRenderService
-from api_data_gen.services.field_match_alignment_service import FieldMatchAlignmentService
-from api_data_gen.services.field_match_validation_service import FieldMatchValidationService
+from api_data_gen.services.relation_strategy_alignment_service import RelationStrategyAlignmentService
+from api_data_gen.services.relation_strategy_validation_service import RelationStrategyValidationService
 from api_data_gen.services.reusable_strategy_service import ReusableStrategyService
 
 
@@ -28,9 +29,10 @@ class _FakePlanningService:
     def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
         return PlanningDraft(
             requirement=RequirementSummary(
-                summary="本地造数闭环",
-                constraints=["不调用LLM"],
-                keywords=["造数", "SQL"],
+                summary="local generation loop",
+
+                constraints=["do not call LLM"],
+                keywords=["local generation", "SQL"],
             ),
             scenarios=[
                 ScenarioDraft(
@@ -38,7 +40,7 @@ class _FakePlanningService:
                     title="custTransInfo baseline replay",
                     api_name="custTransInfo",
                     api_path="/wst/custTransInfo",
-                    objective="回放样例",
+                    objective="replay sample rows",
                 )
             ],
             table_plans=[
@@ -76,17 +78,6 @@ class _FakeSchemaRepository:
             primary_keys=["uuid"],
         )
 
-
-class _FakeFieldMatchRepository:
-    def __init__(self, relations: list[FieldMatchRelation] | None = None):
-        self._relations = list(relations or [])
-
-    def list_relations(self, table_names: list[str]) -> list[FieldMatchRelation]:
-        return [
-            relation
-            for relation in self._relations
-            if relation.target_table in table_names and relation.source_table in table_names
-        ]
 
 
 class _FakeReusableStrategyRepository:
@@ -130,7 +121,7 @@ class DataGenerationServiceTest(unittest.TestCase):
 
     def test_generate_materializes_rows_and_insert_sql(self) -> None:
         report = self.service.generate(
-            requirement_text="Phase 3 本地造数",
+            requirement_text="Phase 3 local generation",
             interfaces=[InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo")],
             sample_limit=2,
         )
@@ -216,7 +207,7 @@ class DataGenerationServiceTest(unittest.TestCase):
 
     def test_generation_tag_changes_generated_primary_keys(self) -> None:
         report = self.service.generate(
-            requirement_text="Phase 3 本地造数",
+            requirement_text="Phase 3 local generation",
             interfaces=[InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo")],
             sample_limit=2,
             generation_tag="run-20260302",
@@ -257,7 +248,7 @@ class DataGenerationServiceTest(unittest.TestCase):
         self.assertNotEqual("2", rows[1].values["id"])
         self.assertNotEqual(rows[0].values["id"], rows[1].values["id"])
 
-    def test_generate_aligns_shared_sample_columns_across_tables(self) -> None:
+    def test_generate_leaves_shared_sample_columns_unaligned_without_relation_rules(self) -> None:
         class _AlignedPlanningService:
             def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
                 return PlanningDraft(
@@ -308,14 +299,13 @@ class DataGenerationServiceTest(unittest.TestCase):
             sample_limit=2,
         )
 
-        self.assertEqual(1, len(report.validation_checks))
-        self.assertEqual("cross_table_alignment:drft_no", report.validation_checks[0].name)
-        self.assertTrue(report.validation_checks[0].passed)
-        self.assertIn("aligned across tables: table_a, table_b", report.validation_checks[0].detail)
-        self.assertEqual("D2", report.generated_tables[0].rows[0].values["drft_no"])
-        self.assertEqual("D2", report.generated_tables[1].rows[1].values["drft_no"])
+        self.assertEqual([], report.validation_checks)
+        self.assertEqual("D1", report.generated_tables[0].rows[0].values["drft_no"])
+        self.assertEqual("D2", report.generated_tables[0].rows[1].values["drft_no"])
+        self.assertEqual("D2", report.generated_tables[1].rows[0].values["drft_no"])
+        self.assertEqual("D3", report.generated_tables[1].rows[1].values["drft_no"])
 
-    def test_generate_aligns_shared_columns_using_reference_values_when_no_overlap(self) -> None:
+    def test_generate_does_not_apply_legacy_alignment_to_non_condition_columns(self) -> None:
         class _FallbackAlignmentPlanningService:
             def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
                 return PlanningDraft(
@@ -369,13 +359,11 @@ class DataGenerationServiceTest(unittest.TestCase):
             sample_limit=2,
         )
 
-        checks = {check.name: check for check in report.validation_checks}
-        self.assertTrue(checks["cross_table_alignment:drft_no"].passed)
-        self.assertTrue(checks["cross_table_alignment:ds"].passed)
+        self.assertEqual([], report.validation_checks)
         self.assertEqual("D1", report.generated_tables[0].rows[0].values["drft_no"])
-        self.assertEqual("D1", report.generated_tables[1].rows[0].values["drft_no"])
+        self.assertEqual("X1", report.generated_tables[1].rows[0].values["drft_no"])
         self.assertEqual("2020-12-20", report.generated_tables[0].rows[0].values["ds"])
-        self.assertEqual("2020-12-20", report.generated_tables[1].rows[0].values["ds"])
+        self.assertEqual("20201220", report.generated_tables[1].rows[0].values["ds"])
 
     def test_generate_reports_cross_table_consistency_failure(self) -> None:
         class _ConflictPlanningService:
@@ -433,11 +421,11 @@ class DataGenerationServiceTest(unittest.TestCase):
         self.assertFalse(report.validation_checks[0].passed)
         self.assertIn("table_b has values not in table_a", report.validation_checks[0].detail)
 
-    def test_generate_aligns_cross_name_fields_via_field_match_relations(self) -> None:
-        class _FieldMatchPlanningService:
+    def test_generate_aligns_cross_name_fields_via_reusable_relation_strategies(self) -> None:
+        class _RelationPlanningService:
             def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
                 return PlanningDraft(
-                    requirement=RequirementSummary(summary="field match", constraints=[], keywords=[]),
+                    requirement=RequirementSummary(summary="relation strategy", constraints=[], keywords=[]),
                     table_plans=[
                         TableDataPlan(
                             table_name="source_table",
@@ -460,7 +448,7 @@ class DataGenerationServiceTest(unittest.TestCase):
                     ],
                 )
 
-        class _FieldMatchSchemaRepository:
+        class _RelationSchemaRepository:
             def get_table_schema(self, table_name: str) -> TableSchema:
                 columns = [TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64)]
                 if table_name == "source_table":
@@ -474,27 +462,33 @@ class DataGenerationServiceTest(unittest.TestCase):
                     primary_keys=["uuid"],
                 )
 
-        field_match_repository = _FakeFieldMatchRepository(
-            [
-                FieldMatchRelation(
-                    target_table="target_table",
-                    target_field="target_no",
-                    source_table="source_table",
-                    source_field="source_no",
-                    match_reason="explicit relation",
-                )
-            ]
-        )
+        repository = _FakeReusableStrategyRepository()
+        repository.relation_records = [
+            StoredRelationStrategy(
+                target_table="target_table",
+                target_field="target_no",
+                source_table="source_table",
+                source_field="source_no",
+                strategy=FieldGenerationStrategy(
+                    executor="local",
+                    generator="copy_from_context",
+                    params={"source_table": "source_table", "source_field": "source_no"},
+                ),
+                relation_reason="explicit relation",
+                strategy_source="manual",
+            )
+        ]
+        reusable_strategy_service = ReusableStrategyService(repository)
         service = DataGenerationService(
-            planning_service=_FieldMatchPlanningService(),
-            schema_repository=_FieldMatchSchemaRepository(),
+            planning_service=_RelationPlanningService(),
+            schema_repository=_RelationSchemaRepository(),
             insert_render_service=InsertRenderService(),
-            field_match_alignment_service=FieldMatchAlignmentService(field_match_repository),
-            field_match_validation_service=FieldMatchValidationService(field_match_repository),
+            relation_strategy_alignment_service=RelationStrategyAlignmentService(reusable_strategy_service),
+            relation_strategy_validation_service=RelationStrategyValidationService(reusable_strategy_service),
         )
 
         report = service.generate(
-            requirement_text="field match",
+            requirement_text="relation strategy",
             interfaces=[InterfaceTarget(name="demo", path="/demo")],
             sample_limit=2,
         )
@@ -505,15 +499,95 @@ class DataGenerationServiceTest(unittest.TestCase):
         self.assertEqual("S2", source_table.rows[1].values["source_no"])
         self.assertEqual("S1", target_table.rows[0].values["target_no"])
         self.assertEqual("S2", target_table.rows[1].values["target_no"])
-        field_check = next(check for check in report.validation_checks if check.name == "field_match:target_table.target_no<-source_table.source_no")
+        field_check = next(check for check in report.validation_checks if check.name == "relation_strategy:target_table.target_no<-source_table.source_no")
         self.assertTrue(field_check.passed)
         self.assertIn("reason=explicit relation", field_check.detail)
 
-    def test_generate_reports_field_match_conflict_for_condition_target(self) -> None:
-        class _FieldMatchConflictPlanningService:
+    def test_generate_skips_legacy_cross_table_checks_for_explicit_relation_rules(self) -> None:
+        class _ScenarioRelationPlanningService:
             def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
                 return PlanningDraft(
-                    requirement=RequirementSummary(summary="field match conflict", constraints=[], keywords=[]),
+                    requirement=RequirementSummary(summary="scenario relation validation", constraints=[], keywords=[]),
+                    scenarios=[
+                        ScenarioDraft(
+                            id="scenario:relation-check",
+                            title="scenario relation validation",
+                            api_name="demo",
+                            api_path="/demo",
+                            objective="prefer explicit relation validation",
+                            tables=["table_a", "table_b"],
+                            table_requirements={"table_a": "1 row", "table_b": "1 row"},
+                            relation_rules=[
+                                RelationRule(
+                                    target_table="table_b",
+                                    target_field="cust_id",
+                                    source_table="table_a",
+                                    source_field="cust_id",
+                                    rationale="scenario relation",
+                                )
+                            ],
+                        )
+                    ],
+                    table_plans=[
+                        TableDataPlan(
+                            table_name="table_a",
+                            primary_keys=["uuid"],
+                            row_hint=1,
+                            column_plans=[
+                                ColumnPlan("uuid", "generated", True, [], ""),
+                                ColumnPlan("cust_id", "condition", True, ["A100"], ""),
+                            ],
+                        ),
+                        TableDataPlan(
+                            table_name="table_b",
+                            primary_keys=["uuid"],
+                            row_hint=1,
+                            column_plans=[
+                                ColumnPlan("uuid", "generated", True, [], ""),
+                                ColumnPlan("cust_id", "condition", True, ["A100"], ""),
+                            ],
+                        ),
+                    ],
+                )
+
+        class _ScenarioRelationSchemaRepository:
+            def get_table_schema(self, table_name: str) -> TableSchema:
+                return TableSchema(
+                    table_name=table_name,
+                    table_type="innodb",
+                    columns=[
+                        TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64),
+                        TableColumn("cust_id", "varchar(32)", False, None, "", False, False, 32),
+                    ],
+                    primary_keys=["uuid"],
+                )
+
+        repository = _FakeReusableStrategyRepository()
+        reusable_strategy_service = ReusableStrategyService(repository)
+        service = DataGenerationService(
+            planning_service=_ScenarioRelationPlanningService(),
+            schema_repository=_ScenarioRelationSchemaRepository(),
+            insert_render_service=InsertRenderService(),
+            relation_strategy_alignment_service=RelationStrategyAlignmentService(reusable_strategy_service),
+            relation_strategy_validation_service=RelationStrategyValidationService(reusable_strategy_service),
+            reusable_strategy_service=reusable_strategy_service,
+        )
+
+        report = service.generate(
+            requirement_text="scenario relation validation",
+            interfaces=[InterfaceTarget(name="demo", path="/demo")],
+            sample_limit=1,
+        )
+
+        check_names = {check.name for check in report.validation_checks}
+        self.assertIn("scenario:relation-check:relation_strategy:table_b.cust_id<-table_a.cust_id", check_names)
+        self.assertNotIn("cross_table_alignment:cust_id", check_names)
+
+    def test_generate_reports_relation_strategy_conflict_for_condition_target(self) -> None:
+        class _RelationConflictPlanningService:
+            def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
+                return PlanningDraft(
+                    requirement=RequirementSummary(summary="relation strategy conflict", constraints=[], keywords=[]),
                     table_plans=[
                         TableDataPlan(
                             table_name="source_table",
@@ -536,7 +610,7 @@ class DataGenerationServiceTest(unittest.TestCase):
                     ],
                 )
 
-        class _FieldMatchConflictSchemaRepository:
+        class _RelationConflictSchemaRepository:
             def get_table_schema(self, table_name: str) -> TableSchema:
                 columns = [TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64)]
                 if table_name == "source_table":
@@ -550,37 +624,130 @@ class DataGenerationServiceTest(unittest.TestCase):
                     primary_keys=["uuid"],
                 )
 
-        field_match_repository = _FakeFieldMatchRepository(
-            [
-                FieldMatchRelation(
-                    target_table="target_table",
-                    target_field="target_no",
-                    source_table="source_table",
-                    source_field="source_no",
-                    match_reason="conflict relation",
-                )
-            ]
-        )
+        repository = _FakeReusableStrategyRepository()
+        repository.relation_records = [
+            StoredRelationStrategy(
+                target_table="target_table",
+                target_field="target_no",
+                source_table="source_table",
+                source_field="source_no",
+                strategy=FieldGenerationStrategy(
+                    executor="local",
+                    generator="copy_from_context",
+                    params={"source_table": "source_table", "source_field": "source_no"},
+                ),
+                relation_reason="conflict relation",
+                strategy_source="manual",
+            )
+        ]
+        reusable_strategy_service = ReusableStrategyService(repository)
         service = DataGenerationService(
-            planning_service=_FieldMatchConflictPlanningService(),
-            schema_repository=_FieldMatchConflictSchemaRepository(),
+            planning_service=_RelationConflictPlanningService(),
+            schema_repository=_RelationConflictSchemaRepository(),
             insert_render_service=InsertRenderService(),
-            field_match_alignment_service=FieldMatchAlignmentService(field_match_repository),
-            field_match_validation_service=FieldMatchValidationService(field_match_repository),
+            relation_strategy_alignment_service=RelationStrategyAlignmentService(reusable_strategy_service),
+            relation_strategy_validation_service=RelationStrategyValidationService(reusable_strategy_service),
         )
 
         report = service.generate(
-            requirement_text="field match conflict",
+            requirement_text="relation strategy conflict",
             interfaces=[InterfaceTarget(name="demo", path="/demo")],
             sample_limit=1,
         )
 
         target_table = next(table for table in report.generated_tables if table.table_name == "target_table")
         self.assertEqual("TGT1", target_table.rows[0].values["target_no"])
-        field_check = next(check for check in report.validation_checks if check.name == "field_match:target_table.target_no<-source_table.source_no")
+        field_check = next(check for check in report.validation_checks if check.name == "relation_strategy:target_table.target_no<-source_table.source_no")
         self.assertFalse(field_check.passed)
         self.assertIn("target=['TGT1']", field_check.detail)
         self.assertIn("source=['SRC1']", field_check.detail)
+
+    def test_generate_persists_scenario_relation_rules_before_alignment(self) -> None:
+        class _ScenarioRulePlanningService:
+            def build_draft(self, requirement_text: str, interfaces: list[InterfaceTarget], sample_limit: int = 3) -> PlanningDraft:
+                return PlanningDraft(
+                    requirement=RequirementSummary(summary="scenario rule persistence", constraints=[], keywords=[]),
+                    scenarios=[
+                        ScenarioDraft(
+                            id="scenario:1",
+                            title="scenario relation",
+                            api_name="demo",
+                            api_path="/demo",
+                            objective="persist relation rules",
+                            tables=["source_table", "target_table"],
+                            table_requirements={"source_table": "2 rows", "target_table": "2 rows"},
+                            relation_rules=[
+                                RelationRule(
+                                    target_table="target_table",
+                                    target_field="target_no",
+                                    source_table="source_table",
+                                    source_field="source_no",
+                                    rationale="scenario relation",
+                                )
+                            ],
+                        )
+                    ],
+                    table_plans=[
+                        TableDataPlan(
+                            table_name="source_table",
+                            primary_keys=["uuid"],
+                            row_hint=2,
+                            column_plans=[
+                                ColumnPlan("uuid", "generated", True, [], ""),
+                                ColumnPlan("source_no", "sample", True, ["S1", "S2"], ""),
+                            ],
+                        ),
+                        TableDataPlan(
+                            table_name="target_table",
+                            primary_keys=["uuid"],
+                            row_hint=2,
+                            column_plans=[
+                                ColumnPlan("uuid", "generated", True, [], ""),
+                                ColumnPlan("target_no", "sample", True, ["T1", "T2"], ""),
+                            ],
+                        ),
+                    ],
+                )
+
+        class _ScenarioRuleSchemaRepository:
+            def get_table_schema(self, table_name: str) -> TableSchema:
+                columns = [TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64)]
+                if table_name == "source_table":
+                    columns.append(TableColumn("source_no", "varchar(32)", False, None, "", False, False, 32))
+                else:
+                    columns.append(TableColumn("target_no", "varchar(32)", False, None, "", False, False, 32))
+                return TableSchema(
+                    table_name=table_name,
+                    table_type="innodb",
+                    columns=columns,
+                    primary_keys=["uuid"],
+                )
+
+        repository = _FakeReusableStrategyRepository()
+        reusable_strategy_service = ReusableStrategyService(repository)
+        service = DataGenerationService(
+            planning_service=_ScenarioRulePlanningService(),
+            schema_repository=_ScenarioRuleSchemaRepository(),
+            insert_render_service=InsertRenderService(),
+            relation_strategy_alignment_service=RelationStrategyAlignmentService(reusable_strategy_service),
+            relation_strategy_validation_service=RelationStrategyValidationService(reusable_strategy_service),
+            reusable_strategy_service=reusable_strategy_service,
+        )
+
+        report = service.generate(
+            requirement_text="scenario relation persistence",
+            interfaces=[InterfaceTarget(name="demo", path="/demo")],
+            sample_limit=2,
+        )
+
+        target_table = next(table for table in report.generated_tables if table.table_name == "target_table")
+        self.assertEqual("S1", target_table.rows[0].values["target_no"])
+        self.assertEqual("S2", target_table.rows[1].values["target_no"])
+        self.assertEqual(1, len(repository.relation_records))
+        self.assertEqual("scenario_inferred", repository.relation_records[0].strategy_source)
+        self.assertEqual("copy_from_context", repository.relation_records[0].strategy.generator)
+        self.assertEqual("same_value", repository.relation_records[0].relation_type)
+        self.assertEqual({}, repository.relation_records[0].evidence)
 
     def test_generate_merges_ai_rows_and_populates_scenario_generations(self) -> None:
         class _AiPlanningService:
@@ -601,9 +768,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="AI cashflow",
                             api_name="multi_api",
                             api_path="",
-                            objective="补齐非本地规则字段。",
+                            objective="fill AI-only fields",
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成 1 条交易记录"},
+                            table_requirements={"demo_table": "generate 1 transaction row"},
                             generation_source="ai",
                         )
                     ],
@@ -629,7 +796,7 @@ class DataGenerationServiceTest(unittest.TestCase):
                     table_type="innodb",
                     columns=[
                         TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64),
-                        TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18),
+                        TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18),
                         TableColumn("trans_amount", "decimal(20,4)", False, None, "", False, False, 20),
                         TableColumn("memo", "varchar(5)", True, None, "", False, False, 5),
                     ],
@@ -772,9 +939,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="AI override local",
                             api_name="multi_api",
                             api_path="",
-                            objective="让 AI 决定 transactionkey 走 AI。",
+                            objective="AI generates transactionkey",
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成 1 条记录"},
+                            table_requirements={"demo_table": "generate 1 row"},
                             generation_source="ai",
                         )
                     ],
@@ -799,7 +966,7 @@ class DataGenerationServiceTest(unittest.TestCase):
                     table_type="innodb",
                     columns=[
                         TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64),
-                        TableColumn("transactionkey", "varchar(64)", False, None, "交易流水号", False, False, 64),
+                        TableColumn("transactionkey", "varchar(64)", False, None, "transaction key", False, False, 64),
                         TableColumn("memo", "varchar(20)", True, None, "", False, False, 20),
                     ],
                     primary_keys=["uuid"],
@@ -867,9 +1034,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                     title=f"cache-{idx}",
                     api_name="multi_api",
                     api_path="",
-                    objective="缓存 AI 分析",
+                    objective="cache AI samples",
                     tables=["demo_table"],
-                    table_requirements={"demo_table": "生成 1 条记录"},
+                    table_requirements={"demo_table": "generate 1 row"},
                     generation_source="ai",
                 )
                 return PlanningDraft(
@@ -974,9 +1141,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                     title=f"decision-{idx}",
                     api_name="multi_api",
                     api_path="",
-                    objective="只做字段策略判断",
+                    objective="only decide field strategies",
                     tables=["demo_table"],
-                    table_requirements={"demo_table": "生成 1 条记录"},
+                    table_requirements={"demo_table": "generate 1 row"},
                     generation_source="ai",
                 )
                 return PlanningDraft(
@@ -1003,8 +1170,8 @@ class DataGenerationServiceTest(unittest.TestCase):
                     table_type="innodb",
                     columns=[
                         TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64),
-                        TableColumn("transactionkey", "varchar(64)", False, None, "交易流水", False, False, 64),
-                        TableColumn("memo", "varchar(20)", True, None, "备注", False, False, 20),
+                        TableColumn("transactionkey", "varchar(64)", False, None, "transaction key", False, False, 64),
+                        TableColumn("memo", "varchar(20)", True, None, "memo", False, False, 20),
                     ],
                     primary_keys=["uuid"],
                 )
@@ -1061,7 +1228,8 @@ class DataGenerationServiceTest(unittest.TestCase):
                             executor="ai",
                             generator="ai_value",
                             fallback_generators=["sample_cycle"],
-                            implementation_hint="后续补一个摘要生成器",
+                            implementation_hint="add a short-summary generator later",
+
                         ),
                         "transactionkey": FieldGenerationStrategy(
                             executor="local",
@@ -1104,7 +1272,8 @@ class DataGenerationServiceTest(unittest.TestCase):
             report.generated_tables[0].field_generation_strategies["memo"].generator,
         )
         self.assertEqual(
-            "后续补一个摘要生成器",
+            "add a short-summary generator later",
+
             report.generated_tables[0].field_generation_strategies["memo"].implementation_hint,
         )
         self.assertEqual(
@@ -1136,9 +1305,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="placeholder",
                             api_name="multi_api",
                             api_path="",
-                            objective="占位词不能直接落库",
+                            objective="support batch field decisions",
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成 1 条记录"},
+                            table_requirements={"demo_table": "generate 1 row"},
                             generation_source="ai",
                         )
                     ],
@@ -1192,13 +1361,14 @@ class DataGenerationServiceTest(unittest.TestCase):
                         "trans_time": FieldGenerationStrategy(
                             executor="local",
                             generator="fixed_value",
-                            params={"value": "2020-12-20各时间点"},
+                            params={"value": "2020-12-20 generate different timestamp"},
                             fallback_generators=["sample_cycle"],
                         ),
                         "trans_amount": FieldGenerationStrategy(
                             executor="local",
                             generator="fixed_value",
-                            params={"value": "随机金额"},
+                            params={"value": "amount placeholder"},
+
                             fallback_generators=["sample_cycle"],
                         ),
                     },
@@ -1243,9 +1413,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="imported",
                             api_name="demo",
                             api_path="/demo",
-                            objective="直接复用策略文件",
+                            objective="reuse imported strategy file",
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成 1 条"},
+                            table_requirements={"demo_table": "generate 1 row"},
                             generation_source="ai" if use_ai_scenarios else "local",
                         )
                     ],
@@ -1301,13 +1471,13 @@ class DataGenerationServiceTest(unittest.TestCase):
                         "trans_time": FieldGenerationStrategy(
                             executor="local",
                             generator="fixed_value",
-                            params={"value": "2020-12-20各时间点"},
+                            params={"value": "2020-12-20 generate different timestamp"},
                             fallback_generators=["sample_cycle"],
                         ),
                         "memo": FieldGenerationStrategy(
                             executor="local",
                             generator="fixed_value",
-                            params={"value": "来自策略文件"},
+                            params={"value": "imported memo value"},
                         ),
                     },
                 )
@@ -1321,7 +1491,7 @@ class DataGenerationServiceTest(unittest.TestCase):
         self.assertEqual("fixed_value", generated_table.field_generation_strategies["memo"].generator)
         first_row = generated_table.rows[0].values
         self.assertEqual("2020-12-20 09:00:00", first_row["trans_time"])
-        self.assertEqual("来自策略文件", first_row["memo"])
+        self.assertEqual("imported memo value", first_row["memo"])
 
     def test_generate_reuses_db_backed_generic_field_strategies_without_ai_service(self) -> None:
         class _ReusableFieldPlanningService:
@@ -1342,9 +1512,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="reusable field",
                             api_name="demo",
                             api_path="/demo",
-                            objective="复用通用字段策略",
+                            objective="reuse generic field strategy",
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成 1 条"},
+                            table_requirements={"demo_table": "generate 1 row"},
                             generation_source="ai",
                         )
                     ],
@@ -1454,9 +1624,10 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="baseline",
                             api_name="demo",
                             api_path="/demo",
-                            objective="主场景",
+                            objective="fallback to local defaults",
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成基础记录"},
+                            table_requirements={"demo_table": "default local row"},
+
                             generation_source="ai",
                         ),
                         ScenarioDraft(
@@ -1464,9 +1635,10 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="boundary-date",
                             api_name="demo",
                             api_path="/demo",
-                            objective="只改日期边界",
+                            objective="change only the date boundary",
+
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "仅调整日期边界字段"},
+                            table_requirements={"demo_table": "local fallback row"},
                             generation_source="ai",
                         ),
                     ],
@@ -1568,9 +1740,10 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="fallback",
                             api_name="demo",
                             api_path="/demo",
-                            objective="无 AI 策略时回退本地默认",
+                            objective="fall back to local defaults when AI strategies are missing",
+
                             tables=["demo_table"],
-                            table_requirements={"demo_table": "生成 1 条"},
+                            table_requirements={"demo_table": "generate 1 row"},
                             generation_source="ai",
                         )
                     ],
@@ -1635,9 +1808,10 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="context",
                             api_name="demo",
                             api_path="/demo",
-                            objective="上下文生成器",
+                            objective="reuse context values across fields and tables",
+
                             tables=["table_a", "table_b"],
-                            table_requirements={"table_a": "生成2条", "table_b": "复用上游票号"},
+                            table_requirements={"table_a": "generate 2 rows", "table_b": "reuse upstream draft no"},
                             generation_source="ai" if use_ai_scenarios else "local",
                         )
                     ],
@@ -1767,9 +1941,9 @@ class DataGenerationServiceTest(unittest.TestCase):
                             title="batch-1",
                             api_name="multi_api",
                             api_path="",
-                            objective="批量字段决策",
+                            objective="batch field decisions",
                             tables=["table_a", "table_b"],
-                            table_requirements={"table_a": "生成1条", "table_b": "生成1条"},
+                            table_requirements={"table_a": "generate 1 row", "table_b": "generate 1 row"},
                             generation_source="ai",
                         )
                     ],
@@ -1812,7 +1986,7 @@ class DataGenerationServiceTest(unittest.TestCase):
                     table_type="innodb",
                     columns=[
                         TableColumn("uuid", "varchar(64)", False, None, "", True, False, 64),
-                        TableColumn("seq_no", "varchar(8)", True, None, "历史序号", False, False, 8),
+                        TableColumn("seq_no", "varchar(8)", True, None, "historical sequence", False, False, 8),
                     ],
                     primary_keys=["uuid"],
                 )
@@ -1883,3 +2057,4 @@ class DataGenerationServiceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

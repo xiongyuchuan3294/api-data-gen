@@ -12,19 +12,19 @@ from api_data_gen.domain.models import (
     GenerationReport,
     InterfaceTarget,
     ScenarioDraft,
+    StoredRelationStrategy,
     ScenarioGeneration,
     TableColumn,
     TableDataPlan,
     TableSchema,
     ValidationCheck,
 )
-from api_data_gen.services.cross_table_alignment_service import CrossTableAlignmentService
 from api_data_gen.services.cross_table_validation_service import CrossTableValidationService
 from api_data_gen.services.fixed_value_service import parse_fixed_values
-from api_data_gen.services.field_match_alignment_service import FieldMatchAlignmentService
-from api_data_gen.services.field_match_validation_service import FieldMatchValidationService
 from api_data_gen.services.local_field_rule_service import LocalFieldRuleService
 from api_data_gen.services.record_validation_service import RecordValidationService
+from api_data_gen.services.relation_strategy_alignment_service import RelationStrategyAlignmentService
+from api_data_gen.services.relation_strategy_validation_service import RelationStrategyValidationService
 
 DEFAULT_MARKER = "[DEFAULT]"
 _UNRESOLVED = object()
@@ -37,33 +37,29 @@ class DataGenerationService:
         schema_repository,
         insert_render_service,
         sample_repository=None,
-        cross_table_alignment_service: CrossTableAlignmentService | None = None,
         cross_table_validation_service: CrossTableValidationService | None = None,
-        field_match_alignment_service: FieldMatchAlignmentService | None = None,
-        field_match_validation_service: FieldMatchValidationService | None = None,
+        relation_strategy_alignment_service: RelationStrategyAlignmentService | None = None,
+        relation_strategy_validation_service: RelationStrategyValidationService | None = None,
         local_field_rule_service: LocalFieldRuleService | None = None,
         record_validation_service: RecordValidationService | None = None,
         ai_data_analysis_service=None,
         ai_data_generation_service=None,
         ai_cache_service=None,
         reusable_strategy_service=None,
-        field_match_repository=None,
     ):
         self._planning_service = planning_service
         self._schema_repository = schema_repository
         self._insert_render_service = insert_render_service
         self._sample_repository = sample_repository
-        self._cross_table_alignment_service = cross_table_alignment_service or CrossTableAlignmentService()
         self._cross_table_validation_service = cross_table_validation_service or CrossTableValidationService()
-        self._field_match_alignment_service = field_match_alignment_service
-        self._field_match_validation_service = field_match_validation_service
+        self._relation_strategy_alignment_service = relation_strategy_alignment_service
+        self._relation_strategy_validation_service = relation_strategy_validation_service
         self._local_field_rule_service = local_field_rule_service or LocalFieldRuleService()
         self._record_validation_service = record_validation_service or RecordValidationService()
         self._ai_data_analysis_service = ai_data_analysis_service
         self._ai_data_generation_service = ai_data_generation_service
         self._ai_cache_service = ai_cache_service
         self._reusable_strategy_service = reusable_strategy_service
-        self._field_match_repository = field_match_repository
 
     def generate(
         self,
@@ -78,11 +74,11 @@ class DataGenerationService:
         use_ai_field_decisions: bool = False,
         imported_field_decisions: dict[str, AiTableGenerationAdvice] | None = None,
     ) -> GenerationReport:
-        # 确定数据来源
+        # Scenario source controls whether row values come from AI or local rules.
         if use_ai_data:
             generation_source = "ai"
         elif use_ai_scenarios or use_ai_field_decisions:
-            generation_source = "hybrid"  # 场景是AI生成，数据是本地生成
+            generation_source = "hybrid"  # Scenarios may come from AI while rows are still generated locally.
         else:
             generation_source = "local"
 
@@ -102,13 +98,16 @@ class DataGenerationService:
         scenarios = draft.scenarios or [
             ScenarioDraft(
                 id="default",
-                title="默认",
+                title="default generation",
+
                 api_name="default",
                 api_path="",
-                objective="默认生成",
+                objective="default generation",
+
                 tables=[table_plan.table_name for table_plan in draft.table_plans],
                 table_requirements={
-                    table_plan.table_name: "默认生成"
+                    table_plan.table_name: "default generation"
+
                     for table_plan in draft.table_plans
                 },
             )
@@ -133,6 +132,7 @@ class DataGenerationService:
                 len(scenarios),
             )
             relevant_plans = _select_table_plans(draft.table_plans, scenario)
+            self._persist_reusable_relation_strategies(scenario, relevant_plans)
             scenario_field_decisions = self._decide_ai_field_strategies_for_scenario(
                 requirement_text=requirement_text,
                 scenario=scenario,
@@ -183,9 +183,8 @@ class DataGenerationService:
                 _update_scenario_context(scenario_context, table_result)
                 scenario_checks.extend(record_checks)
 
-            scenario_tables = self._cross_table_alignment_service.align(relevant_plans, scenario_tables)
-            if self._field_match_alignment_service is not None:
-                scenario_tables = self._field_match_alignment_service.align(relevant_plans, scenario_tables)
+            if self._relation_strategy_alignment_service is not None:
+                scenario_tables = self._relation_strategy_alignment_service.align(relevant_plans, scenario_tables)
 
             rendered_tables: list[GeneratedTable] = []
             for generated_table in scenario_tables:
@@ -196,10 +195,15 @@ class DataGenerationService:
                 rendered_tables.append(rendered_table)
                 scenario_checks.extend(record_checks)
 
-            scenario_checks.extend(self._cross_table_validation_service.validate(relevant_plans, rendered_tables))
-            if self._field_match_validation_service is not None:
-                scenario_checks.extend(self._field_match_validation_service.validate(relevant_plans, rendered_tables))
-            self._persist_reusable_relation_strategies(relevant_plans)
+            scenario_checks.extend(
+                self._cross_table_validation_service.validate(
+                    relevant_plans,
+                    rendered_tables,
+                    relation_rules=scenario.relation_rules,
+                )
+            )
+            if self._relation_strategy_validation_service is not None:
+                scenario_checks.extend(self._relation_strategy_validation_service.validate(relevant_plans, rendered_tables))
 
             namespaced_checks = _namespace_checks(scenario.id, scenario_checks)
             scenario_generations.append(
@@ -286,7 +290,7 @@ class DataGenerationService:
                     "table_name": table_name,
                     "schema": schema,
                     "scenario_summaries": [
-                        f"{scenario.title}: {scenario.objective}; 表要求: {scenario.table_requirements.get(table_name, '') or '默认生成'}"
+                        f"{scenario.title}: {scenario.objective}; Table requirement: {scenario.table_requirements.get(table_name, '') or 'default generation'}"
                     ],
                     "local_generated_columns": local_fields,
                     "prior_advice": prior_advice,
@@ -359,13 +363,43 @@ class DataGenerationService:
             return
         self._reusable_strategy_service.save_generic_field_strategies(table_name, advice)
 
-    def _persist_reusable_relation_strategies(self, relevant_plans: list[TableDataPlan]) -> None:
-        if self._reusable_strategy_service is None or self._field_match_repository is None:
+    def _persist_reusable_relation_strategies(
+        self,
+        scenario: ScenarioDraft,
+        relevant_plans: list[TableDataPlan],
+    ) -> None:
+        if self._reusable_strategy_service is None or not scenario.relation_rules:
             return
-        table_names = [plan.table_name for plan in relevant_plans]
-        relations = self._field_match_repository.list_relations(table_names)
-        if relations:
-            self._reusable_strategy_service.save_relation_strategies(relations)
+        available_tables = {plan.table_name for plan in relevant_plans}
+        records: list[StoredRelationStrategy] = []
+        for rule in scenario.relation_rules:
+            if rule.target_table not in available_tables or rule.source_table not in available_tables:
+                continue
+            if rule.relation_type not in {"same_value", "copy_from_context"}:
+                continue
+            records.append(
+                StoredRelationStrategy(
+                    target_table=rule.target_table,
+                    target_field=rule.target_field,
+                    source_table=rule.source_table,
+                    source_field=rule.source_field,
+                    strategy=FieldGenerationStrategy(
+                        executor="local",
+                        generator="copy_from_context",
+                        params={
+                            "source_table": rule.source_table,
+                            "source_field": rule.source_field,
+                        },
+                        rationale=rule.rationale,
+                    ),
+                    relation_reason=rule.rationale or rule.relation_type,
+                    strategy_source="scenario_inferred",
+                    relation_type=rule.relation_type or "same_value",
+                    evidence=dict(rule.evidence),
+                )
+            )
+        if records:
+            self._reusable_strategy_service.save_relation_strategies(records)
 
     def _generate_ai_rows(
         self,
@@ -460,9 +494,9 @@ class DataGenerationService:
         scenario_context_by_table: dict[str, list[str]] = {}
         for scenario in scenarios:
             for table_plan in _select_table_plans(table_plans, scenario):
-                requirement = scenario.table_requirements.get(table_plan.table_name, "") or "默认生成"
+                requirement = scenario.table_requirements.get(table_plan.table_name, "") or "default generation"
                 scenario_context_by_table.setdefault(table_plan.table_name, []).append(
-                    f"{scenario.title}: {scenario.objective}; 表要求: {requirement}"
+                    f"{scenario.title}: {scenario.objective}; Table requirement: {requirement}"
                 )
 
         pending_requests: list[dict[str, object]] = []
@@ -552,6 +586,7 @@ class DataGenerationService:
                 insert_sql=[],
                 scenario_id=scenario.id,
                 scenario_title=scenario.title,
+                scenario_objective=scenario.objective,
                 field_strategies=field_strategies,
                 field_generation_strategies=field_generation_strategies,
                 generation_source=generation_source,
@@ -579,6 +614,7 @@ class DataGenerationService:
                 insert_sql=[insert_sql] if insert_sql else [],
                 scenario_id=scenario.id,
                 scenario_title=scenario.title,
+                scenario_objective=scenario.objective,
                 field_strategies=generated_table.field_strategies,
                 field_generation_strategies=generated_table.field_generation_strategies,
                 generation_source=generated_table.generation_source,
@@ -990,35 +1026,35 @@ def _build_default_generation_strategy(
             executor="local",
             generator="fixed_value",
             params={"value": fixed_value_map[column.name]},
-            rationale="固定值约束",
+            rationale="fixed value override",
         )
     if column.is_primary_key and source != "condition":
         return FieldGenerationStrategy(
             executor="local",
             generator="generated_value",
-            rationale="主键本地生成",
+            rationale="generate primary key locally",
         )
     if source == "condition":
         return FieldGenerationStrategy(
             executor="local",
             generator="condition_value",
             params={"values": suggested_values},
-            rationale="SQL条件值",
+            rationale="SQL condition value",
         )
     if local_field_rule_service.has_local_rule(column):
-        if column.name.lower() == "transactionkey" or "交易流水号" in column.comment.lower():
+        if column.name.lower() == "transactionkey" or "transaction" in column.comment.lower():
             return FieldGenerationStrategy(
                 executor="local",
                 generator="transaction_key",
                 fallback_generators=["sample_cycle", "default_value"],
-                rationale="本地交易流水生成器",
+                rationale="local transaction key generator",
             )
-        if column.name.lower() == "model_seq" or "模型树结果序列化" in column.comment.lower():
+        if column.name.lower() == "model_seq" or "model" in column.comment.lower():
             return FieldGenerationStrategy(
                 executor="local",
                 generator="model_seq_blank",
                 fallback_generators=["default_value"],
-                rationale="本地模型序列生成器",
+                rationale="local model sequence generator",
             )
         if source == "dictionary":
             return FieldGenerationStrategy(
@@ -1026,13 +1062,13 @@ def _build_default_generation_strategy(
                 generator="dictionary_cycle",
                 params={"values": suggested_values},
                 fallback_generators=["sample_cycle"],
-                rationale="字典值轮询",
+                rationale="dictionary value cycle",
             )
         return FieldGenerationStrategy(
             executor="local",
             generator="customer_id",
             fallback_generators=["sample_cycle", "default_value"],
-            rationale="本地客户号生成器",
+            rationale="local customer id generator",
         )
     if source == "dictionary":
         return FieldGenerationStrategy(
@@ -1040,7 +1076,7 @@ def _build_default_generation_strategy(
             generator="dictionary_cycle",
             params={"values": suggested_values},
             fallback_generators=["default_value"],
-            rationale="字典值轮询",
+            rationale="dictionary value cycle",
         )
     if source == "sample":
         if _looks_like_sequence_column(column) and suggested_values:
@@ -1049,7 +1085,7 @@ def _build_default_generation_strategy(
                 generator="sequence_cycle",
                 params={"values": suggested_values},
                 fallback_generators=["default_value"],
-                rationale="序号样本轮询",
+                rationale="sequence sample cycle",
             )
         if _looks_like_datetime_values(suggested_values):
             return FieldGenerationStrategy(
@@ -1057,7 +1093,7 @@ def _build_default_generation_strategy(
                 generator="datetime_range_cycle",
                 params={"values": suggested_values},
                 fallback_generators=["default_value"],
-                rationale="时间样本轮询",
+                rationale="datetime sample cycle",
             )
         if _looks_like_decimal_values(suggested_values):
             return FieldGenerationStrategy(
@@ -1065,20 +1101,20 @@ def _build_default_generation_strategy(
                 generator="amount_pattern_cycle",
                 params={"values": suggested_values},
                 fallback_generators=["default_value"],
-                rationale="金额样本轮询",
+                rationale="amount sample cycle",
             )
         return FieldGenerationStrategy(
             executor="local",
             generator="sample_cycle",
             params={"values": suggested_values},
             fallback_generators=["default_value"],
-            rationale="采样值轮询",
+            rationale="sample value cycle",
         )
     if source == "generated":
         return FieldGenerationStrategy(
             executor="local",
             generator="generated_value",
-            rationale="本地生成值",
+            rationale="local generated value",
         )
     if source == "default":
         return FieldGenerationStrategy(
@@ -1086,18 +1122,18 @@ def _build_default_generation_strategy(
             generator="default_value",
             params={"values": suggested_values},
             fallback_generators=["fallback_value"],
-            rationale="默认值生成",
+            rationale="default value generation",
         )
     if source == "optional":
         return FieldGenerationStrategy(
             executor="local",
             generator="null",
-            rationale="可空字段默认空值",
+            rationale="optional field defaults to null",
         )
     return FieldGenerationStrategy(
         executor="local",
         generator="fallback_value",
-        rationale="兜底本地生成",
+        rationale="local fallback generation",
     )
 
 
@@ -1113,7 +1149,7 @@ def _merge_generation_strategy(
                 executor="ai",
                 generator="ai_value",
                 fallback_generators=[default_strategy.generator, *default_strategy.fallback_generators],
-                rationale="AI直接生成字段值",
+                rationale="AI generated field value",
             )
         return default_strategy
 
@@ -1161,7 +1197,7 @@ def _materialize_generic_generator(
 def _looks_like_sequence_column(column: TableColumn) -> bool:
     name = column.name.lower()
     comment = column.comment.lower()
-    return name in {"seq_no", "sequence_no"} or "序号" in comment
+    return name in {"seq_no", "sequence_no"} or "sequence" in comment
 
 
 def _looks_like_datetime_values(values: list[str]) -> bool:
@@ -1212,18 +1248,39 @@ def _looks_like_placeholder_value(value: str) -> bool:
     text = str(value).strip()
     if not text:
         return False
-    keywords = ("随机", "序号", "各时间点", "不同时间点", "唯一", "生成", "关联", "对应")
-    return any(keyword in text for keyword in keywords)
-
+    lowered = text.lower()
+    keywords = (
+        "random",
+        "sequence",
+        "different time",
+        "unique",
+        "generate",
+        "relation",
+        "mapping",
+        "placeholder",
+        "generate different timestamp",
+        "time placeholder",
+        "amount placeholder",
+    )
+    return any(keyword in lowered for keyword in keywords)
 
 def _normalize_placeholder_fixed_value(value: str, row_index: int) -> str | None:
     text = str(value).strip()
-    match = re.search(r"(20\d{2}-\d{2}-\d{2}).*(时间点|时间)", text)
-    if match:
-        base = datetime.strptime(match.group(1), "%Y-%m-%d")
-        return (base + timedelta(minutes=row_index * 7 + 9 * 60)).strftime("%Y-%m-%d %H:%M:%S")
-    return None
+    match = re.search(r"(20\d{2}-\d{2}-\d{2})", text)
+    if match is None:
+        return None
 
+    placeholder_keywords = (
+        "different time",
+        "generate different timestamp",
+        "time placeholder",
+        "amount placeholder",
+    )
+    if not any(keyword in text.lower() for keyword in placeholder_keywords):
+        return None
+
+    base = datetime.strptime(match.group(1), "%Y-%m-%d")
+    return (base + timedelta(minutes=row_index * 7 + 9 * 60)).strftime("%Y-%m-%d %H:%M:%S")
 
 def _pick_cycle(values: list[str], row_index: int) -> str | None:
     if not values:
@@ -1330,3 +1387,4 @@ def _fit_suffix(value: str, max_length: int) -> str:
     if max_length <= 0 or len(value) <= max_length:
         return value
     return value[-max_length:]
+

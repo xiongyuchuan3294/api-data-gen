@@ -18,14 +18,13 @@ from api_data_gen.domain.models import (
 
 class ExecutionMode(Enum):
     LOCAL = "local"
-    DIRECT = "direct"
     AGENT_PROMPT = "agent_prompt"
     AGENT_AUTO = "agent_auto"
 
 
 @dataclass
 class ExecutionConfig:
-    mode: ExecutionMode = ExecutionMode.AGENT_PROMPT
+    mode: ExecutionMode = ExecutionMode.AGENT_AUTO
     max_agent_turns: int = 10
     enable_mcp: bool = False
     mcp_port: int = 8000

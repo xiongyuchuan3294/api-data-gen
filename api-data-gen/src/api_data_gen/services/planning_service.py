@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import re
 
@@ -14,6 +15,7 @@ from api_data_gen.domain.models import (
     TableSchema,
 )
 from api_data_gen.services.requirement_parser import RequirementParser
+from api_data_gen.services.relation_rule_derivation_service import RelationRuleDerivationService
 
 _CONDITION_RE = re.compile(r"`?([A-Za-z0-9_]+)`?\s*(=|<=|>=|<|>)\s*'{1,2}([^']*)'{1,2}")
 
@@ -30,6 +32,7 @@ class PlanningService:
         requirement_parser: RequirementParser,
         ai_scenario_service=None,
         ai_cache_service=None,
+        relation_rule_derivation_service: RelationRuleDerivationService | None = None,
     ):
         self._settings = settings
         self._trace_repository = trace_repository
@@ -40,6 +43,7 @@ class PlanningService:
         self._requirement_parser = requirement_parser
         self._ai_scenario_service = ai_scenario_service
         self._ai_cache_service = ai_cache_service
+        self._relation_rule_derivation_service = relation_rule_derivation_service or RelationRuleDerivationService()
 
     def build_draft(
         self,
@@ -55,16 +59,6 @@ class PlanningService:
         schemas = self._schema_service.get_all_table_schemas(interface_infos)
         table_samples = {table_name: self._sample_repository.sample_rows(table_name, sample_limit) for table_name in schemas}
 
-        scenarios = self._build_scenarios(
-            requirement_text=requirement_text,
-            interfaces=interfaces,
-            interface_infos=interface_infos,
-            schemas=schemas,
-            fixed_values=fixed_values,
-            dependent_fixed_values=dependent_fixed_values,
-            use_ai_scenarios=use_ai_scenarios,
-        )
-
         table_plans = [
             self._build_table_plan(
                 table_name=table_name,
@@ -75,6 +69,17 @@ class PlanningService:
             )
             for table_name, schema in schemas.items()
         ]
+
+        scenarios = self._build_scenarios(
+            requirement_text=requirement_text,
+            interfaces=interfaces,
+            interface_infos=interface_infos,
+            schemas=schemas,
+            fixed_values=fixed_values,
+            dependent_fixed_values=dependent_fixed_values,
+            use_ai_scenarios=use_ai_scenarios,
+        )
+        scenarios = self._attach_relation_rules(scenarios, table_plans)
 
         return PlanningDraft(
             requirement=requirement,
@@ -155,17 +160,17 @@ class PlanningService:
         scenarios = [
             ScenarioDraft(
                 id=f"{target.name}:baseline",
-                title=f"{target.name} 基线回放",
+                title=f"{target.name} baseline replay",
                 api_name=target.name,
                 api_path=target.path,
-                objective="回放最新接口样例，验证核心 SQL 过滤条件与业务表联动。",
+                objective="Replay the latest interface sample and verify the core SQL filters and business-table chain.",
                 request_inputs=request_inputs,
                 fixed_conditions=fixed_conditions,
                 assertions=_build_baseline_assertions(tables, fixed_conditions),
                 tables=tables,
                 table_requirements=_build_local_table_requirements(
                     tables,
-                    "回放最新接口样例，满足核心 SQL 过滤条件与主链路表关联。",
+                    "Replay the latest interface sample and satisfy the core SQL filters on the main path tables.",
                 ),
             )
         ]
@@ -174,20 +179,20 @@ class PlanningService:
             scenarios.append(
                 ScenarioDraft(
                     id=f"{target.name}:pagination",
-                    title=f"{target.name} 分页稳定性",
+                    title=f"{target.name} pagination stability",
                     api_name=target.name,
                     api_path=target.path,
-                    objective="在不改变业务过滤条件的前提下验证分页参数变化。",
+                    objective="Verify pagination parameter changes without changing the business filters.",
                     request_inputs={key: request_inputs[key] for key in request_inputs if key in {"pageSize", "pageNum"}},
                     fixed_conditions=fixed_conditions,
                     assertions=[
-                        "修改 pageSize 或 pageNum 时，cust_id/model_key 等业务过滤条件保持不变。",
-                        "分页前后命中的业务表不应变化。",
+                        "Changing pageSize or pageNum must not change business filters such as cust_id or model_key.",
+                        "The business tables hit before and after pagination changes should stay consistent.",
                     ],
                     tables=tables,
                     table_requirements=_build_local_table_requirements(
                         tables,
-                        "保持业务过滤条件不变，并确保分页前后链路表数据可稳定命中。",
+                        "Keep the business filters unchanged and ensure the linked tables can still be hit consistently across pagination changes.",
                     ),
                 )
             )
@@ -197,20 +202,20 @@ class PlanningService:
             scenarios.append(
                 ScenarioDraft(
                     id=f"{target.name}:dictionary",
-                    title=f"{target.name} 字典一致性",
+                    title=f"{target.name} dictionary consistency",
                     api_name=target.name,
                     api_path=target.path,
-                    objective="验证码值字段只落在允许的字典候选集合中。",
+                    objective="Verify coded fields stay within the allowed dictionary values.",
                     request_inputs=request_inputs,
                     fixed_conditions=fixed_conditions,
                     assertions=[
-                        f"{column_name} 必须使用以下值之一: {', '.join(values)}"
+                        f"{column_name} must use one of: {', '.join(values)}"
                         for column_name, values in dict_columns.items()
                     ],
                     tables=tables,
                     table_requirements=_build_local_table_requirements(
                         tables,
-                        "字典字段应落在允许的码值集合中，同时保持跨表条件一致。",
+                        "Dictionary-backed fields must stay within the allowed value set while preserving cross-table consistency.",
                     ),
                 )
             )
@@ -240,7 +245,7 @@ class PlanningService:
                         source="condition",
                         required=True,
                         suggested_values=_deduplicate(values_from_condition),
-                        rationale=f"来自SQL过滤器: {'; '.join(item['raw'] for item in condition_matches)}",
+                        rationale=f"Derived from SQL filter: {'; '.join(item['raw'] for item in condition_matches)}",
                     )
                 )
                 continue
@@ -252,7 +257,7 @@ class PlanningService:
                         source="generated",
                         required=True,
                         suggested_values=[],
-                        rationale="主键应在插入渲染时唯一生成。",
+                        rationale="Primary keys should be generated uniquely when rendering inserts.",
                     )
                 )
                 continue
@@ -264,7 +269,7 @@ class PlanningService:
                         source="dictionary",
                         required=not column.nullable,
                         suggested_values=dict_values[:sample_limit],
-                        rationale="从导入/系统字典映射解析。",
+                        rationale="Resolved from imported or system dictionary mappings.",
                     )
                 )
                 continue
@@ -276,7 +281,7 @@ class PlanningService:
                         source="sample",
                         required=not column.nullable,
                         suggested_values=sample_values[column.name][:sample_limit],
-                        rationale="从采样的业务行中观察。",
+                        rationale="Observed from sampled business rows.",
                     )
                 )
                 continue
@@ -288,7 +293,7 @@ class PlanningService:
                         source="default",
                         required=True,
                         suggested_values=[_default_value_for_type(column.type)],
-                        rationale="非空列且没有样本或字典值。",
+                        rationale="Non-null column with no sample or dictionary value available.",
                     )
                 )
                 continue
@@ -299,7 +304,7 @@ class PlanningService:
                     source="optional",
                     required=False,
                     suggested_values=[],
-                    rationale="可空列且在Phase 2草稿中没有固定来源。",
+                    rationale="Nullable column with no fixed source in the draft.",
                 )
             )
 
@@ -310,6 +315,26 @@ class PlanningService:
             row_hint=max(1, min(sample_limit, len(sample_rows) or 1)),
             column_plans=column_plans,
         )
+
+    def _attach_relation_rules(
+        self,
+        scenarios: list[ScenarioDraft],
+        table_plans: list[TableDataPlan],
+    ) -> list[ScenarioDraft]:
+        if self._relation_rule_derivation_service is None:
+            return scenarios
+        enriched: list[ScenarioDraft] = []
+        for scenario in scenarios:
+            derived_rules = self._relation_rule_derivation_service.derive(scenario, table_plans)
+            merged_rules = _merge_relation_rules(scenario.relation_rules, derived_rules)
+            enriched.append(
+                replace(
+                    scenario,
+                    relation_rules=merged_rules,
+                    tables=_normalize_scenario_tables(scenario, merged_rules),
+                )
+            )
+        return enriched
 
 
 def _extract_request_inputs(trace_request) -> dict[str, str]:
@@ -360,6 +385,19 @@ def _collect_table_conditions(interface_infos: list[InterfaceInfo], table_name: 
     return ordered
 
 
+def _normalize_scenario_tables(
+    scenario: ScenarioDraft,
+    relation_rules,
+) -> list[str]:
+    ordered = list(dict.fromkeys([*scenario.tables, *scenario.table_requirements.keys()]))
+    for rule in relation_rules:
+        if rule.target_table and rule.target_table not in ordered:
+            ordered.append(rule.target_table)
+        if rule.source_table and rule.source_table not in ordered:
+            ordered.append(rule.source_table)
+    return ordered
+
+
 def _collect_interface_dict_columns(
     tables: list[str],
     schemas: dict[str, TableSchema],
@@ -380,15 +418,29 @@ def _collect_interface_dict_columns(
 def _build_baseline_assertions(tables: list[str], fixed_conditions: list[str]) -> list[str]:
     assertions: list[str] = []
     if tables:
-        assertions.append(f"业务链路应命中表: {', '.join(tables)}")
+        assertions.append(f"Business chain should hit tables: {', '.join(tables)}")
     if fixed_conditions:
-        assertions.append(f"核心过滤条件应保持一致: {'; '.join(fixed_conditions)}")
-    assertions.append("至少一张业务表应能采到用于回放的样本数据。")
+        assertions.append(f"Core filter conditions should stay aligned: {'; '.join(fixed_conditions)}")
+    assertions.append("At least one business table should have sample rows available for replay.")
     return assertions
 
 
 def _build_local_table_requirements(tables: list[str], requirement: str) -> dict[str, str]:
     return {table_name: requirement for table_name in tables}
+
+
+def _merge_relation_rules(existing_rules, derived_rules):
+    ordered = {}
+    for rule in [*existing_rules, *derived_rules]:
+        key = (
+            rule.target_table,
+            rule.target_field,
+            rule.source_table,
+            rule.source_field,
+            rule.relation_type,
+        )
+        ordered.setdefault(key, rule)
+    return list(ordered.values())
 
 
 def _parse_conditions(conditions: list[str]) -> dict[str, list[dict[str, str]]]:

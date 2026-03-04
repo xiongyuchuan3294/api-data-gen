@@ -84,6 +84,17 @@ class RequirementSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class RelationRule:
+    target_table: str
+    target_field: str
+    source_table: str
+    source_field: str
+    relation_type: str = "same_value"
+    rationale: str = ""
+    evidence: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class ScenarioDraft:
     id: str
     title: str
@@ -95,6 +106,7 @@ class ScenarioDraft:
     assertions: list[str] = field(default_factory=list)
     tables: list[str] = field(default_factory=list)
     table_requirements: dict[str, str] = field(default_factory=dict)
+    relation_rules: list[RelationRule] = field(default_factory=list)
     generation_source: str = "local"
 
 
@@ -152,6 +164,9 @@ class StoredRelationStrategy:
     strategy: FieldGenerationStrategy
     relation_reason: str = ""
     strategy_source: str = ""
+    relation_type: str = "same_value"
+    evidence: dict[str, object] = field(default_factory=dict)
+    confidence_score: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +247,7 @@ class GeneratedTable:
     insert_sql: list[str] = field(default_factory=list)
     scenario_id: str = ""
     scenario_title: str = ""
+    scenario_objective: str = ""
     field_strategies: dict[str, str] = field(default_factory=dict)
     field_generation_strategies: dict[str, FieldGenerationStrategy] = field(default_factory=dict)
     generation_source: str = ""  # 数据来源: "local"(本地) / "ai"(AI) / "hybrid"(混合)

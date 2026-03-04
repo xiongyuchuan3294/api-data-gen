@@ -41,7 +41,7 @@ The seed script includes the user-provided DDL and sample rows, plus three Phase
 
 - `aml_new3.aml_f_tidb_model_result` includes two `WSTY001` rows derived from the supplied trace payload so business-table sampling matches the target case.
 - `rrs_test_dev.t_aml_sys_dict_info` includes a `receive_pay_cd -> receive_pay` mapping row so the current Java dictionary lookup order can succeed locally.
-- `rrs_test_dev.field_match_relations` seeds two WST cross-name mappings so local generation can align `last_req_nm <- req_nm` and `drwr_nm <- rcv_nm`.
+- `rrs_test_dev.field_match_relations` seeds two WST cross-name mappings so sample fallback can borrow example values for `last_req_nm <- req_nm` and `drwr_nm <- rcv_nm` when direct target-table samples are missing.
 
 ## CLI Examples
 

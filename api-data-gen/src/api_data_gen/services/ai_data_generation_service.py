@@ -98,14 +98,14 @@ class AiDataGenerationService:
             prior_advice=prior_advice,
         )
         response = self._ai_chat_client.complete(
-            system_prompt="你是一位数据库测试字段策略专家，只负责判断字段更适合 AI 还是本地规则。",
+            system_prompt="You are a database test field-strategy specialist. Only decide whether each field should use AI or local rules.",
             user_prompt=prompt,
             max_output_tokens=_FIELD_STRATEGY_SINGLE_MAX_OUTPUT_TOKENS,
         )
         compact_advice = _parse_compact_field_decisions(response, default_table_name=table_name)
         if compact_advice:
             return compact_advice.get(table_name) or next(iter(compact_advice.values()))
-        payload = self._load_object_payload(prompt, response)
+        payload = self._load_object_payload(prompt, response, default_table_name=table_name)
         strategies = _extract_field_strategies(payload)
         generation_strategies = _extract_field_generation_strategies(payload, strategies)
         return AiTableGenerationAdvice(
@@ -129,14 +129,19 @@ class AiDataGenerationService:
             dependent_fixed_values=dependent_fixed_values,
         )
         response = self._ai_chat_client.complete(
-            system_prompt="你是一位数据库测试字段策略专家，只负责批量判断字段更适合 AI 还是本地规则。",
+            system_prompt="You are a database test field-strategy specialist. Batch-decide whether each field should use AI or local rules.",
             user_prompt=prompt,
             max_output_tokens=_batch_strategy_max_output_tokens(len(table_requests)),
         )
         compact_advice = _parse_compact_field_decisions(response)
         if compact_advice:
             return compact_advice
-        payload = self._load_payload(prompt, response, allow_partial_recovery=True)
+        payload = self._load_payload(
+            prompt,
+            response,
+            allow_partial_recovery=True,
+            allow_compact_field_decisions=True,
+        )
         result = self._normalize_payload(payload)
         return {
             table_name: AiTableGenerationAdvice(
@@ -170,7 +175,7 @@ class AiDataGenerationService:
             strategy_only=strategy_only,
         )
         response = self._ai_chat_client.complete(
-            system_prompt="你是一位数据库测试数据生成专家，负责为给定测试场景生成结构化表数据。",
+            system_prompt="You are a database test-data generation specialist. Generate structured table data for the given test scenario.",
             user_prompt=prompt,
         )
         payload = self._load_payload(prompt, response)
@@ -259,67 +264,67 @@ class AiDataGenerationService:
         strategy_only: bool = False,
     ) -> str:
         sections = [
-            "测试场景:",
-            f"- 名称: {scenario.title}",
-            f"- 描述: {scenario.objective}",
-            f"- 表需求: {scenario.table_requirements or {table: '' for table in scenario.tables}}",
+            "Scenario:",
+            f"- Name: {scenario.title}",
+            f"- Objective: {scenario.objective}",
+            f"- Table requirements: {scenario.table_requirements or {table: '' for table in scenario.tables}}",
             "",
-            f"固定字段: {format_fixed_value_lines(fixed_values) or '[无]'}",
-            f"依赖固定值: {format_fixed_value_lines(dependent_fixed_values) or '[无]'}",
+            f"Fixed values: {format_fixed_value_lines(fixed_values) or '[none]'}",
+            f"Dependent fixed values: {format_fixed_value_lines(dependent_fixed_values) or '[none]'}",
             "",
-            "以下字段具备本地规则能力，仅供参考，不是强制约束:",
+            "These fields already have local generator support. Use this as guidance, not as a hard restriction:",
             str({table: sorted(values) for table, values in local_generated_columns.items()}),
             "",
-            "你需要逐字段判断是走 AI 生成还是走本地规则:",
-            "1. 请尽量输出结构化 field_generation_strategies，让本地代码按生成器执行。",
-            "2. 如果字段更适合本地规则，请使用 executor=local，并选择合适 generator。",
-            "3. 如果字段本地生成器暂时做不了，再使用 executor=ai；必要时补 implementation_hint / implementation_code。",
-            "4. 如果你直接在 data 中输出了某字段值，系统会优先把它视为 AI 生成。",
+            "Decide field by field whether the value should come from AI or local rules.",
+            "1. Prefer structured field_generation_strategies so local code can execute generators directly.",
+            "2. Use executor=local when the field can be generated deterministically by local rules.",
+            "3. Use executor=ai only when local generators cannot cover the field yet. Fill implementation_hint or implementation_code when needed.",
+            "4. If you place a value directly in data, the system treats that field as AI-generated.",
             "",
         ]
         for table_name, schema in schemas.items():
             if strategy_only:
                 sections.extend(
                     [
-                        f"表: {table_name}",
-                        f"字段: {_summarize_schema(schema)}",
+                        f"Table: {table_name}",
+                        f"Fields: {_summarize_schema(schema)}",
                         "",
                     ]
                 )
             else:
                 sections.extend(
                     [
-                        f"表: {table_name}",
-                        f"结构: {schema}",
-                        f"样本: {sample_rows_by_table.get(table_name, [])[:5]}",
-                        f"分析建议: {analysis_by_table.get(table_name, '{}')}",
+                        f"Table: {table_name}",
+                        f"Schema: {schema}",
+                        f"Samples: {sample_rows_by_table.get(table_name, [])[:5]}",
+                        f"Analysis hints: {analysis_by_table.get(table_name, '{}')}",
                         "",
                     ]
                 )
         if strategy_only:
             sections.extend(
                 [
-                    "输出要求:",
-                    "1. 严格输出 JSON 数组",
-                    '2. 默认每个元素格式为 {"table":"表名","field_strategies":{"字段名":"ai|local"},"field_generation_strategies":{"字段名":{"executor":"local|ai","generator":"生成器编码","params":{},"fallback_generators":[],"implementation_hint":"","implementation_code":""}}}',
-                    "3. 只有极少数字段必须由 AI 直接赋值时，才额外输出 data，且 data 只允许 1 行、只包含这些 AI 字段",
-                    "4. field_strategies 只允许 ai 或 local；field_generation_strategies 里的 executor 也只允许 local 或 ai",
-                    "5. 优先复用这些本地生成器编码:",
+                    "Output requirements:",
+                    "1. Return a JSON array only.",
+                    '2. Each item should look like {"table":"table_name","field_strategies":{"field":"ai|local"},"field_generation_strategies":{"field":{"executor":"local|ai","generator":"generator_code","params":{},"fallback_generators":[],"implementation_hint":"","implementation_code":""}}}.',
+                    "3. Only include data when AI must provide a direct field value, and in that case keep data to one row with only those AI fields.",
+                    "4. field_strategies and field_generation_strategies.executor must only use ai or local.",
+                    "5. Prefer these local generator codes first:",
                     _format_supported_generators(),
-                    "6. 组合字段、日期派生字段、上下游复用字段优先使用结构化本地策略。",
-                    '7. 示例: {"table":"aml_f_tidb_model_result","field_generation_strategies":{"result_key":{"executor":"local","generator":"concat_template","params":{"template":"{model_key}{result_date}{cust_id}","transforms":{"result_date":"date:%Y%m%d"}}}}}',
-                    "8. 保持跨表字段一致性，不要输出额外解释",
+                    '6. Prefer structured local strategies for derived keys, date transforms, and reusable upstream/downstream fields.',
+                    '7. Example: {"table":"aml_f_tidb_model_result","field_generation_strategies":{"result_key":{"executor":"local","generator":"concat_template","params":{"template":"{model_key}{result_date}{cust_id}","transforms":{"result_date":"date:%Y%m%d"}}}}}.',
+                    "8. Keep cross-table fields consistent and do not add explanations.",
                 ]
             )
         else:
             sections.extend(
                 [
-                    "输出要求:",
-                    "1. 严格输出 JSON 数组",
-                    '2. 每个元素格式为 {"table":"表名","field_strategies":{"字段名":"ai|local"},"field_generation_strategies":{"字段名":{"executor":"local|ai","generator":"生成器编码","params":{},"fallback_generators":[]}},"data":{...}} 或 {"table":"表名","field_strategies":{...},"field_generation_strategies":{...},"data":[{...}]}',
-                    "3. 如果某张表无需 AI 直接给值，可省略 data 或输出空对象 {}",
-                    "4. field_strategies 只允许 ai 或 local；能描述成结构化生成器时，不要只给口头描述",
-                    "5. 保持跨表字段一致性，不要输出额外解释",
+                    "Output requirements:",
+                    "1. Return a JSON array only.",
+                    '2. Each item should look like {"table":"table_name","field_strategies":{"field":"ai|local"},"field_generation_strategies":{"field":{"executor":"local|ai","generator":"generator_code","params":{},"fallback_generators":[]}},"data":{...}} or {"table":"table_name","field_strategies":{...},"field_generation_strategies":{...},"data":[{...}]}.',
+                    "3. If a table does not need direct AI values, omit data or use an empty object.",
+                    "4. Prefer structured generators over natural-language descriptions whenever possible.",
+                    "5. Keep cross-table fields consistent and do not add explanations.",
                 ]
             )
         return "\n".join(sections)
@@ -336,51 +341,51 @@ class AiDataGenerationService:
         prior_advice: AiTableGenerationAdvice | None = None,
     ) -> str:
         sections = [
-            "任务:",
-            "请只做字段策略判断，不要生成测试数据行。",
+            "Task:",
+            "Decide field strategies only. Do not generate data rows.",
             "",
-            "业务需求:",
+            "Business requirement:",
             requirement_text,
             "",
-            "相关场景:",
+            "Related scenarios:",
             _format_scenario_summaries(scenario_summaries),
             "",
-            f"表名: {table_name}",
-            f"字段: {_summarize_schema(schema, important_fields=set(local_generated_columns))}",
-            f"本地规则能力字段: {sorted(local_generated_columns) or ['[无]']}",
-            f"固定字段: {format_fixed_value_lines(fixed_values) or '[无]'}",
-            f"依赖固定值: {format_fixed_value_lines(dependent_fixed_values) or '[无]'}",
+            f"Table: {table_name}",
+            f"Fields: {_summarize_schema(schema, important_fields=set(local_generated_columns))}",
+            f"Fields with local generator support: {sorted(local_generated_columns) or ['[none]']}",
+            f"Fixed values: {format_fixed_value_lines(fixed_values) or '[none]'}",
+            f"Dependent fixed values: {format_fixed_value_lines(dependent_fixed_values) or '[none]'}",
             "",
-            "判断原则:",
-            "1. 主键、固定值、条件值、明显可由本地规则稳定生成的字段优先 local。",
-            "2. 需要业务语义、文本理解、跨字段组合判断的字段标 ai。",
-            "3. 未明确需要 AI 的字段尽量不要标 ai。",
+            "Decision rules:",
+            "1. Prefer local for primary keys, fixed values, SQL-condition values, and any field that can be generated deterministically.",
+            "2. Mark a field as ai only when it needs business semantics, text understanding, or cross-field reasoning that local rules cannot cover.",
+            "3. When in doubt, do not mark the field as ai.",
             "",
-            "优先使用这些本地生成器编码:",
+            "Prefer these local generator codes first:",
             _format_supported_generators(),
             "",
         ]
         if _has_explicit_field_decisions(prior_advice):
             sections.extend(
                 [
-                    "可复用历史策略:",
+                    "Reusable prior strategy:",
                     _format_prior_strategy_hint(prior_advice),
-                    "如果本场景与历史策略大体一致，只输出需要调整的差异字段；未输出字段系统会沿用历史策略。",
+                    "If the current scenario mostly matches the prior strategy, only output the fields that need to change. Unmentioned fields will reuse the prior strategy.",
                     "",
                 ]
             )
         sections.extend(
             [
-                "输出要求:",
-                "1. 优先输出紧凑行格式:",
+                "Output requirements:",
+                "1. Prefer compact line format.",
                 f"   TABLE|{table_name}",
-                "   FIELD|字段名|local或ai|generator编码|params(k=v;k2=v2)|fallback1,fallback2|implementation_hint|implementation_code",
-                "2. params 为空时可留空；列表可写成 values=a,b,c；嵌套转换写成 transform.result_date=date:%Y%m%d。",
-                "3. 只输出你需要显式判断的字段；未输出的字段系统会视为 local。",
-                "4. 如果确实无法输出紧凑行格式，再退回 JSON 对象。",
-                "5. 不要输出 data，不要输出解释文字。",
-                "6. 优先把组合字段、日期派生字段、上下游复用字段描述成结构化本地策略。",
-                "7. 示例: FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d|||",
+                "   FIELD|field_name|local_or_ai|generator_code|params(k=v;k2=v2)|fallback1,fallback2|implementation_hint|implementation_code",
+                "2. Leave params empty when not needed. Lists may be written as values=a,b,c. Nested transforms may be written as transform.result_date=date:%Y%m%d.",
+                "3. Only output fields that need an explicit decision. Unmentioned fields will be treated as local.",
+                "4. If compact lines are impossible, fall back to a JSON object.",
+                "5. Do not output data rows or explanations.",
+                "6. Prefer structured local strategies for derived keys, date transforms, and reusable upstream/downstream fields.",
+                "7. Example: FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d|||",
             ]
         )
         return "\n".join(sections)
@@ -393,24 +398,24 @@ class AiDataGenerationService:
         dependent_fixed_values: list[str] | None,
     ) -> str:
         sections = [
-            "任务:",
-            "请批量判断多张表的字段生成策略，不要生成测试数据行。",
+            "Task:",
+            "Decide field-generation strategies for multiple tables. Do not generate data rows.",
             "",
-            "业务需求:",
+            "Business requirement:",
             requirement_text,
             "",
-            f"固定字段: {format_fixed_value_lines(fixed_values) or '[无]'}",
-            f"依赖固定值: {format_fixed_value_lines(dependent_fixed_values) or '[无]'}",
+            f"Fixed values: {format_fixed_value_lines(fixed_values) or '[none]'}",
+            f"Dependent fixed values: {format_fixed_value_lines(dependent_fixed_values) or '[none]'}",
             "",
-            "判断原则:",
-            "1. 主键、固定值、条件值、明显可由本地规则稳定生成的字段优先 local。",
-            "2. 组合字段、日期格式转换字段、上下游复用字段尽量使用结构化本地生成器。",
-            "3. 只有本地生成器确实覆盖不了的字段才标 ai。",
+            "Decision rules:",
+            "1. Prefer local for primary keys, fixed values, SQL-condition values, and deterministic fields.",
+            "2. Prefer structured local generators for derived keys, date transforms, and reusable upstream/downstream fields.",
+            "3. Mark a field as ai only when local generators clearly cannot cover it.",
             "",
-            "优先使用这些本地生成器编码:",
+            "Prefer these local generator codes first:",
             _format_supported_generators(),
             "",
-            "紧凑示例:",
+            "Compact examples:",
             "FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d|||",
             "FIELD|ds|local|date_format_from_field|source_field=alert_date;output_format=%Y%m%d|||",
             "FIELD|drft_no|local|copy_from_context|source_field=drft_no|||",
@@ -427,37 +432,46 @@ class AiDataGenerationService:
             prior_advice = request.get("prior_advice")
             sections.extend(
                 [
-                    f"表名: {table_name}",
-                    "相关场景:",
+                    f"Table: {table_name}",
+                    "Related scenarios:",
                     _format_scenario_summaries(scenario_summaries),
-                    f"字段: {_summarize_schema(schema, important_fields=set(local_generated_columns or []))}",
-                    f"本地规则能力字段: {sorted(local_generated_columns or []) or ['[无]']}",
+                    f"Fields: {_summarize_schema(schema, important_fields=set(local_generated_columns or []))}",
+                    f"Fields with local generator support: {sorted(local_generated_columns or []) or ['[none]']}",
                 ]
             )
             if _has_explicit_field_decisions(prior_advice):
                 sections.extend(
                     [
-                        "可复用历史策略:",
+                        "Reusable prior strategy:",
                         _format_prior_strategy_hint(prior_advice),
-                        "如果本场景与历史策略大体一致，只输出需要调整的差异字段；未输出字段系统会沿用历史策略。",
+                        "If the current scenario mostly matches the prior strategy, only output the fields that need to change. Unmentioned fields will reuse the prior strategy.",
                     ]
                 )
             sections.append("")
         sections.extend(
             [
-                "输出要求:",
-                "1. 优先输出紧凑行格式，按表分块:",
-                "   TABLE|表名",
-                "   FIELD|字段名|local或ai|generator编码|params(k=v;k2=v2)|fallback1,fallback2|implementation_hint|implementation_code",
-                "2. params 为空时可留空；列表可写成 values=a,b,c；嵌套转换写成 transform.result_date=date:%Y%m%d。",
-                "3. 只输出你需要显式判断的字段；未输出的字段系统会视为 local。",
-                "4. 如果确实无法输出紧凑行格式，再退回 JSON 数组。",
-                "5. 不要输出 data，不要输出解释文字。",
+                "Output requirements:",
+                "1. Prefer compact line format, grouped by table:",
+                "   TABLE|table_name",
+                "   FIELD|field_name|local_or_ai|generator_code|params(k=v;k2=v2)|fallback1,fallback2|implementation_hint|implementation_code",
+                "2. Leave params empty when not needed. Lists may be written as values=a,b,c. Nested transforms may be written as transform.result_date=date:%Y%m%d.",
+                "3. Only output fields that need an explicit decision. Unmentioned fields will be treated as local.",
+                "4. If compact lines are impossible, fall back to a JSON array.",
+                "5. Do not output data rows or explanations.",
             ]
         )
         return "\n".join(sections)
 
-    def _load_payload(self, prompt: str, response: str, allow_partial_recovery: bool = False) -> object:
+    def _load_payload(
+        self,
+        prompt: str,
+        response: str,
+        allow_partial_recovery: bool = False,
+        allow_compact_field_decisions: bool = False,
+    ) -> object:
+        compact_payload = _compact_field_decisions_payload(response)
+        if allow_compact_field_decisions and compact_payload is not None:
+            return compact_payload
         try:
             return parse_json_payload(response)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -465,6 +479,9 @@ class AiDataGenerationService:
             if recovered:
                 return recovered
             repaired = self._repair_payload(prompt, response, str(exc))
+            compact_payload = _compact_field_decisions_payload(repaired)
+            if allow_compact_field_decisions and compact_payload is not None:
+                return compact_payload
             try:
                 return parse_json_payload(repaired)
             except (json.JSONDecodeError, ValueError) as repaired_exc:
@@ -475,43 +492,63 @@ class AiDataGenerationService:
                     prompt,
                     repaired,
                     (
-                        "上一次修复后的内容仍不是合法 JSON。\n"
-                        f"错误信息: {repaired_exc}\n"
-                        "请务必补全缺失的引号、逗号、右括号、右中括号，并将字符串中的换行转义为 \\n。"
+                        "?????????????? JSON?\n"
+                        f"????: {repaired_exc}\n"
+                        "??????????????????????????????????? \\n?"
                     ),
                 )
+                compact_payload = _compact_field_decisions_payload(repaired_again)
+                if allow_compact_field_decisions and compact_payload is not None:
+                    return compact_payload
                 return parse_json_payload(repaired_again)
 
     def _repair_payload(self, prompt: str, response: str, error_detail: str) -> str:
         return self._ai_chat_client.complete(
-            system_prompt="你是一位 JSON 修复助手，只负责把给定内容修复为合法 JSON。",
+            system_prompt="You repair malformed JSON. Return only valid JSON.",
             user_prompt=(
-                "下面是一次测试数据生成的模型输出，但它不是合法 JSON。\n"
-                "请保留原有语义，只输出修复后的 JSON 数组，不要附加解释。\n"
-                "如果字符串里包含换行，必须转义为 \\n。\n"
-                f"当前解析错误: {error_detail}\n\n"
-                f"原始提示:\n{prompt}\n\n"
-                f"待修复输出:\n{response}"
+                "The following model output should describe test data generation, but it is not valid JSON.\n"
+                "Keep the original meaning and return only a repaired JSON array. Do not add explanations.\n"
+                "If strings contain embedded newlines, escape them as \\n.\n"
+                f"Current parse error: {error_detail}\n\n"
+                f"Original prompt:\n{prompt}\n\n"
+                f"Malformed output:\n{response}"
             ),
             max_output_tokens=_FIELD_STRATEGY_REPAIR_MAX_OUTPUT_TOKENS,
         )
 
-    def _load_object_payload(self, prompt: str, response: str) -> object:
+    def _load_object_payload(
+        self,
+        prompt: str,
+        response: str,
+        default_table_name: str | None = None,
+    ) -> object:
+        compact_payload = _compact_field_decisions_object_payload(
+            response,
+            default_table_name=default_table_name,
+        )
+        if compact_payload is not None:
+            return compact_payload
         try:
             return _normalize_object_payload(parse_json_payload(response))
         except (json.JSONDecodeError, ValueError) as exc:
             repaired = self._repair_object_payload(prompt, response, str(exc))
+            compact_payload = _compact_field_decisions_object_payload(
+                repaired,
+                default_table_name=default_table_name,
+            )
+            if compact_payload is not None:
+                return compact_payload
             return _normalize_object_payload(parse_json_payload(repaired))
 
     def _repair_object_payload(self, prompt: str, response: str, error_detail: str) -> str:
         return self._ai_chat_client.complete(
-            system_prompt="你是一位 JSON 修复助手，只负责把给定内容修复为合法 JSON。",
+            system_prompt="You repair malformed JSON. Return only valid JSON.",
             user_prompt=(
-                "下面是一次字段策略判断的模型输出，但它不是合法 JSON。\n"
-                "请保留原有语义，只输出修复后的 JSON 对象，不要附加解释。\n"
-                f"当前解析错误: {error_detail}\n\n"
-                f"原始提示:\n{prompt}\n\n"
-                f"待修复输出:\n{response}"
+                "The following model output should describe field-strategy decisions, but it is not valid JSON.\n"
+                "Keep the original meaning and return only a repaired JSON object. Do not add explanations.\n"
+                f"Current parse error: {error_detail}\n\n"
+                f"Original prompt:\n{prompt}\n\n"
+                f"Malformed output:\n{response}"
             ),
             max_output_tokens=_FIELD_STRATEGY_REPAIR_MAX_OUTPUT_TOKENS,
         )
@@ -601,7 +638,7 @@ def _summarize_schema(schema: TableSchema, important_fields: set[str] | None = N
         parts.append(description)
     omitted_count = max(0, len(schema.columns) - len(selected_columns))
     if omitted_count:
-        parts.append(f"...省略{omitted_count}列")
+        parts.append(f"... omitted {omitted_count} columns")
     return ", ".join(parts)
 
 
@@ -702,7 +739,7 @@ def _format_supported_generators() -> str:
 
 def _format_prior_strategy_hint(advice: AiTableGenerationAdvice | None) -> str:
     if not _has_explicit_field_decisions(advice):
-        return "[无]"
+        return "[none]"
     lines = [f"TABLE|{advice.table_name}"]
     field_names = list(advice.field_generation_strategies) or list(advice.field_strategies)
     for field_name in field_names[:24]:
@@ -759,24 +796,64 @@ def _field_strategy_column_rank(column, important_fields: set[str]) -> tuple[int
         0 if column.is_primary_key else 1,
         0 if name in important_fields else 1,
         0 if name in _HIGH_VALUE_FIELD_NAMES else 1,
-        0 if any(keyword in comment for keyword in ("客户", "模型", "日期", "时间", "票", "金额", "收付", "请求", "接收", "交易")) else 1,
+        0 if any(keyword in comment for keyword in ("customer", "model", "date", "time", "draft", "amount", "pay", "request", "receive", "transaction")) else 1,
     )
 
 
 def _format_scenario_summaries(summaries: list[str] | None) -> str:
     if not summaries:
-        return "[无]"
+        return "[none]"
     trimmed: list[str] = []
     for item in summaries[:_FIELD_STRATEGY_SUMMARY_LIMIT]:
         text = " ".join(str(item).split())
         if len(text) > _FIELD_STRATEGY_SUMMARY_CHAR_LIMIT:
-            text = f"{text[:_FIELD_STRATEGY_SUMMARY_CHAR_LIMIT - 1]}…"
+            text = f"{text[:_FIELD_STRATEGY_SUMMARY_CHAR_LIMIT - 3]}..."
         trimmed.append(f"- {text}")
     return "\n".join(trimmed)
 
 
 def _batch_strategy_max_output_tokens(table_count: int) -> int:
     return min(1400, max(700, 260 + (table_count * 170)))
+
+
+def _compact_field_decisions_payload(response: str) -> list[dict[str, object]] | None:
+    compact_advice = _parse_compact_field_decisions(response)
+    if not compact_advice:
+        return None
+    return [_advice_to_payload_item(advice) for advice in compact_advice.values()]
+
+
+def _compact_field_decisions_object_payload(
+    response: str,
+    default_table_name: str | None = None,
+) -> dict[str, object] | None:
+    compact_advice = _parse_compact_field_decisions(response, default_table_name=default_table_name)
+    if not compact_advice:
+        return None
+    advice = None
+    if default_table_name:
+        advice = compact_advice.get(default_table_name)
+    if advice is None:
+        advice = next(iter(compact_advice.values()))
+    return _advice_to_payload_item(advice)
+
+
+def _advice_to_payload_item(advice: AiTableGenerationAdvice) -> dict[str, object]:
+    return {
+        "table": advice.table_name,
+        "field_strategies": dict(advice.field_strategies),
+        "field_generation_strategies": {
+            field_name: {
+                "executor": strategy.executor,
+                "generator": strategy.generator,
+                "params": dict(strategy.params),
+                "fallback_generators": list(strategy.fallback_generators),
+                "implementation_hint": strategy.implementation_hint,
+                "implementation_code": strategy.implementation_code,
+            }
+            for field_name, strategy in advice.field_generation_strategies.items()
+        },
+    }
 
 
 def _parse_compact_field_decisions(

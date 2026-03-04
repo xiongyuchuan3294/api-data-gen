@@ -7,32 +7,44 @@ Phase 3 consumes the `draft` output from Phase 2 and turns it into executable ar
 - deterministic local fallback values
 - rendered `INSERT` SQL
 
-The default path is still fully local. AI-assisted scenario expansion and AI-assisted non-local field completion are now optional CLI features and are only used when the corresponding flags are enabled.
+The current primary path is `--strategy-mode agent_auto`:
+
+- AI generates scenarios inside the project
+- `generate` may ask AI for table-level field generation strategies
+- final row generation, validation, and SQL rendering remain local
+
+Fallback modes are:
+
+- `--strategy-mode local`
+- `--strategy-mode agent`
+
+`direct` mode and the old `--use-ai-scenarios` / `--use-ai-data` CLI flags are no longer part of the public interface.
 
 ## Scope
 
 Phase 3 includes:
 
-- Materializing `table_plans` into scenario-scoped row candidates
-- Preserving separate generated rows per scenario instead of flattening all scenarios into one table-level result
-- Reusing fixed SQL conditions as stable field values
-- Accepting explicit `fixed_value` and `depend_fixed_value` hints from the CLI
-- Reusing dictionary and sampled values where available
-- Auto-discovering and persisting `field_match_relations` when direct table samples are missing
-- Generating primary keys and required business fallback values locally
-- Avoiding reuse of sampled primary-key values even when samples exist
-- Locally generating Java-compatible business fields such as `cust_id`, `transactionkey`, and `model_seq`
-- Validating cross-table consistency for shared condition-driven fields
-- Applying `field_match_relations` to align cross-name fields from source tables
-- Validating and truncating generated records against table schema before SQL rendering
-- Rendering MySQL `INSERT` SQL
-- Supporting generation tags so repeated apply runs can avoid deterministic primary-key collisions
-- Optionally calling AI to generate scenarios and fill non-local fields per scenario
+- materializing `table_plans` into scenario-scoped row candidates
+- preserving separate generated rows per scenario instead of flattening all scenarios into one table-level result
+- reusing fixed SQL conditions as stable field values
+- accepting explicit `fixed_value` and `depend_fixed_value` hints from the CLI
+- reusing dictionary and sampled values where available
+- auto-discovering and persisting `field_match_relations` when direct table samples are missing
+- generating primary keys and required business fallback values locally
+- avoiding reuse of sampled primary-key values even when samples exist
+- locally generating Java-compatible business fields such as `cust_id`, `transactionkey`, and `model_seq`
+- validating cross-table consistency for shared condition-driven fields
+- applying `reusable_relation_strategies` to align explicit cross-table consistency rules
+- validating and truncating generated records against table schema before SQL rendering
+- rendering MySQL `INSERT` SQL
+- supporting generation tags so repeated apply runs can avoid deterministic primary-key collisions
+- optionally reusing imported field-generation strategies from `strategy_*.json`
 
 Phase 3 does not include:
 
-- Strategy routing or agent orchestration
-- Automatic selection between local and AI strategies beyond explicit CLI flags
+- general ReAct orchestration inside the CLI
+- arbitrary external tool loops
+- direct public CLI flags for forcing legacy AI branches
 
 ## Value Source Rules
 
@@ -50,36 +62,29 @@ Primary keys are special-cased:
 - non-auto primary keys always use generated values unless SQL conditions fix them explicitly
 - auto primary keys render as `DEFAULT`
 - sampled primary-key values are not reused
-- when a `generation_tag` is provided, generated primary keys include a tag-derived token
-  so separate apply batches do not reuse the same deterministic key values
+- when a `generation_tag` is provided, generated primary keys include a tag-derived token so separate apply batches do not reuse the same deterministic key values
 
-Explicit field-match relations are also supported:
+Reusable relation strategies are also supported:
 
-- when `field_match_relations` contains `target_table.target_field <- source_table.source_field`
+- when `reusable_relation_strategies` contains `target_table.target_field <- source_table.source_field`
 - and both tables are in the current generation scope
 - `generate` aligns target values from the generated source rows
 - condition-derived target fields are not overwritten, but conflicts are reported in validation
 
-When a target table has no direct samples and no existing relations:
+When a target table has no direct samples and no existing sample fallback mappings:
 
 - `generate` falls back to automatic field-match discovery
 - candidate source tables are ranked by row count
 - matching prefers identical column names, then identical comments, with compatible types only
-- discovered relations are persisted back to `rrs_test_dev.field_match_relations`
+- discovered relations are persisted back to `rrs_test_dev.field_match_relations` for future sample fallback only
 
-Local business field rules are also applied before any AI data:
+Local business field rules are also applied before final rendering:
 
 - dictionary-backed fields are generated locally first
 - customer-id-like fields use deterministic 18-digit values
 - `transactionkey` uses the Java-compatible `6008CYYYYMMDD...99996` pattern
 - `model_seq` is emitted as an empty string
 - fixed values override those local generators when field names match
-
-When `--use-ai-data` is enabled:
-
-- sampled rows are masked for locally generated fields before being sent to AI
-- optional sample analysis runs first and feeds per-table hints into generation
-- AI only fills non-local fields; local rules, fixed conditions, and primary-key generation still win
 
 For required columns without a concrete source:
 
@@ -90,7 +95,38 @@ For required columns without a concrete source:
 
 ## CLI Usage
 
-Run Phase 3 from the same requirement file and interface mapping used in Phase 2:
+Run Phase 3 with the current default mode:
+
+```powershell
+api-data-gen generate `
+  --requirement-file 需求描述 `
+  --api custTransInfo=/wst/custTransInfo `
+  --api custDrftRecord=/wst/custDrftRecord `
+  --strategy-mode agent_auto
+```
+
+Reuse an exported strategy file while still generating scenarios with AI:
+
+```powershell
+api-data-gen generate `
+  --requirement-file 需求描述 `
+  --api custTransInfo=/wst/custTransInfo `
+  --api custDrftRecord=/wst/custDrftRecord `
+  --strategy-mode agent_auto `
+  --strategy-file output/strategy_20260304_094815_agent_auto.json
+```
+
+Force fully local fallback behavior:
+
+```powershell
+api-data-gen generate `
+  --requirement-file 需求描述 `
+  --api custTransInfo=/wst/custTransInfo `
+  --api custDrftRecord=/wst/custDrftRecord `
+  --strategy-mode local
+```
+
+Prepare an external-agent prompt bundle instead of generating rows inside the project:
 
 ```powershell
 api-data-gen generate `
@@ -121,34 +157,9 @@ api-data-gen generate `
   --apply-sql
 ```
 
-Generate AI scenarios from the same requirement and interface chain:
-
-```powershell
-api-data-gen draft `
-  --requirement-file 需求描述 `
-  --api custTransInfo=/wst/custTransInfo `
-  --api custDrftRecord=/wst/custDrftRecord `
-  --fixed-value cust_id=962020122711000002 `
-  --depend-fixed-value "transactionkey depends on alert_date" `
-  --use-ai-scenarios
-```
-
-Use AI to fill non-local fields during Phase 3 generation:
-
-```powershell
-api-data-gen generate `
-  --requirement-file 需求描述 `
-  --api custTransInfo=/wst/custTransInfo `
-  --api custDrftRecord=/wst/custDrftRecord `
-  --fixed-value cust_id=962020122711000002 `
-  --depend-fixed-value "transactionkey depends on alert_date" `
-  --strategy-mode direct `
-  --use-ai-scenarios `
-  --use-ai-data
-```
-
 Notes:
 
+- `--strategy-mode agent_auto` is the default mode
 - `--generation-tag` is optional for plain preview generation
 - when `--apply-sql` is used without an explicit tag, the CLI auto-generates one from the current timestamp
 - the generated report and exported SQL script both include the final `generation_tag`
@@ -156,9 +167,8 @@ Notes:
 - `API_DATA_GEN_AI_PROVIDER` defaults to `auto`; use `anthropic` when the gateway speaks Anthropic Messages API instead of OpenAI Chat Completions
 - when the credential is Claude Code-only, set `API_DATA_GEN_AI_PROVIDER=claude_code`; this uses the local `claude` CLI instead of direct HTTP calls
 - for internal HTTPS endpoints with self-signed or private CA certificates, set `API_DATA_GEN_AI_VERIFY_SSL=false` or provide `API_DATA_GEN_AI_CA_FILE`
-- `--strategy-mode agent` is now the default; in this mode the project only输出 `agent_bundle`，不直接在项目内部调用模型
-- `--strategy-mode direct` keeps the old explicit `--use-ai-scenarios` / `--use-ai-data` behavior
-- `--sql-output-file` and `--apply-sql` are only meaningful in `local` or `direct` mode
+- `--strategy-mode agent` only outputs `agent_bundle` / `agent_run` and does not render SQL
+- `--sql-output-file` and `--apply-sql` are only meaningful in `local` or `agent_auto` mode
 
 Without installing the package:
 
@@ -179,8 +189,7 @@ The `generate` command returns:
 - `table_plans`: the source planning used for generation
 - `generated_tables`: scenario-scoped row candidates plus rendered `INSERT` SQL
 - `scenario_generations`: grouped generated tables and validation checks per scenario
-- `validation_checks`: cross-table consistency checks for shared condition columns
-  relation-driven field mapping checks, and record-level normalization/truncation checks
+- `validation_checks`: cross-table consistency checks for shared condition columns, relation-driven field mapping checks, and record-level normalization/truncation checks
 - `generation_tag`: the normalized batch tag used for generated values, if any
 - `agent_run`: the local preparation trace when agent mode is used
 - `agent_bundle`: prompt specs, tool specs, samples, table plans, and local context for an external model
@@ -210,16 +219,8 @@ When `--apply-sql` is provided:
 
 ## Exit Criteria
 
-Phase 3 is considered complete for the local-only slice when:
+Phase 3 is considered complete for the current local-rendering slice when:
 
 - at least one table can be materialized from a real `draft`
 - the output contains executable `INSERT` SQL
-- the full unit test suite passes against the local implementation
-
-For Java parity, the Phase 3 implementation now also covers:
-
-- scenario-scoped generation and SQL output
-- automatic field-match discovery and persistence
-- fixed-value and dependent-fixed-value inputs
-- local business field generators used before AI completion
-- record-level schema validation and truncation
+- the relevant unit tests pass against the implementation

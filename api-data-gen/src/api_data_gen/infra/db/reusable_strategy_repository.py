@@ -95,7 +95,7 @@ class ReusableStrategyRepository:
             SELECT target_table, target_field, source_table, source_field,
                    executor, generator, params_json, fallback_generators_json,
                    rationale, implementation_hint, implementation_code,
-                   relation_reason, strategy_source
+                   relation_reason, strategy_source, relation_type, evidence_json, confidence_score
             FROM {schema_name}.reusable_relation_strategies
             WHERE is_active = 1 AND (target_table IN ({placeholders}) OR source_table IN ({placeholders}))
             ORDER BY target_table, target_field, source_table, source_field
@@ -110,6 +110,9 @@ class ReusableStrategyRepository:
                 strategy=_build_strategy(row),
                 relation_reason=str(row.get("relation_reason") or ""),
                 strategy_source=str(row.get("strategy_source") or ""),
+                relation_type=str(row.get("relation_type") or "same_value"),
+                evidence=_parse_json_object(row.get("evidence_json")),
+                confidence_score=_parse_confidence(row.get("confidence_score")),
             )
             for row in self._client.fetch_all(query, params)
         ]
@@ -123,6 +126,8 @@ class ReusableStrategyRepository:
         for item in strategies:
             params_json = json.dumps(item.strategy.params, ensure_ascii=False, sort_keys=True)
             fallbacks_json = json.dumps(item.strategy.fallback_generators, ensure_ascii=False)
+            evidence_json = json.dumps(item.evidence, ensure_ascii=False, sort_keys=True)
+            confidence_literal = "NULL" if item.confidence_score is None else str(round(item.confidence_score, 4))
             statements.append(
                 f"""
                 INSERT INTO {schema_name}.reusable_relation_strategies
@@ -130,7 +135,7 @@ class ReusableStrategyRepository:
                     target_table, target_field, source_table, source_field,
                     executor, generator, params_json, fallback_generators_json,
                     rationale, implementation_hint, implementation_code,
-                    relation_reason, strategy_source, use_count, is_active
+                    relation_reason, strategy_source, relation_type, evidence_json, confidence_score, use_count, is_active
                 )
                 VALUES (
                     {quote_literal(item.target_table)},
@@ -145,7 +150,10 @@ class ReusableStrategyRepository:
                     {quote_literal(item.strategy.implementation_hint)},
                     {quote_literal(item.strategy.implementation_code)},
                     {quote_literal(item.relation_reason)},
-                    {quote_literal(item.strategy_source or "field_match")},
+                    {quote_literal(item.strategy_source or "scenario_inferred")},
+                    {quote_literal(item.relation_type or "same_value")},
+                    {quote_literal(evidence_json)},
+                    {confidence_literal},
                     1,
                     1
                 )
@@ -159,6 +167,9 @@ class ReusableStrategyRepository:
                     implementation_code = VALUES(implementation_code),
                     relation_reason = VALUES(relation_reason),
                     strategy_source = VALUES(strategy_source),
+                    relation_type = VALUES(relation_type),
+                    evidence_json = VALUES(evidence_json),
+                    confidence_score = VALUES(confidence_score),
                     use_count = use_count + 1,
                     last_used_at = CURRENT_TIMESTAMP,
                     is_active = 1
@@ -207,7 +218,10 @@ class ReusableStrategyRepository:
                 implementation_hint TEXT NULL,
                 implementation_code MEDIUMTEXT NULL,
                 relation_reason VARCHAR(512) NULL,
-                strategy_source VARCHAR(32) NOT NULL DEFAULT 'field_match',
+                strategy_source VARCHAR(32) NOT NULL DEFAULT 'scenario_inferred',
+                relation_type VARCHAR(32) NOT NULL DEFAULT 'same_value',
+                evidence_json TEXT NULL,
+                confidence_score DECIMAL(5,4) NULL,
                 use_count INT NOT NULL DEFAULT 1,
                 last_used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -266,3 +280,13 @@ def _deduplicate(values: list[str]) -> list[str]:
         seen.add(value)
         ordered.append(value)
     return ordered
+
+
+
+def _parse_confidence(value: object) -> float | None:
+    if value in {None, ""}:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

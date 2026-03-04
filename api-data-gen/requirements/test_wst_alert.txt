@@ -5,24 +5,15 @@
 
 ## 接口信息
 - 接口1（交易信息）：/aml/wst/custTransInfo
-  - 请求参数：custId=962020122711000002, caseDate=2020-12-27, modelNo=WSTY001
-
+查询预警日期 <= 案例日期下的最新预警日期的交易
 - 接口2（背书转让记录）：/aml/wst/custDrftRecord
-  - 请求参数：custId=962020122711000002, caseDate=2020-12-27, modelNo=WSTY001
+查询预警日期 <= 案例日期下的最新预警日期的背书转让记录
 
 ## 业务约束
 1. 同一个客户有预警必须有交易（1:N）
 2. 同一个客户有案例必须有预警（1:N）
 
-## 数据生成需求
-需要生成以下测试数据：
-1. 模型结果表（aml_f_tidb_model_result）：2条记录
-2. 交易信息表（aml_f_wst_alert_cust_trans_info）：10条记录
-3. 票据背书记录表（aml_f_wst_alert_cust_drft_record）：10条记录
-
 ## 约束条件
 - cust_id 固定为 962020122711000002
 - model_key 固定为 WSTY001
 - alert_date 固定为 2020-12-20
-- receive_pay_cd 需要轮换使用字典值（收/01、付/02）
-- 交易表和票据表的 drft_no 需要保持关联一致

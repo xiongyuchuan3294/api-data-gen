@@ -5,10 +5,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from api_data_gen.domain.models import AiTableGenerationAdvice, FieldGenerationStrategy, ScenarioDraft
+from api_data_gen.domain.models import AiTableGenerationAdvice, FieldGenerationStrategy, RelationRule, ScenarioDraft
 
-_SCENARIO_CACHE_VERSION = 1
-_FIELD_STRATEGY_CACHE_VERSION = 1
+_SCENARIO_CACHE_VERSION = 3
+_FIELD_STRATEGY_CACHE_VERSION = 2
 _MAX_HINT_FIELDS = 24
 
 
@@ -62,6 +62,7 @@ class AiCacheService:
                     table_requirements=_normalize_string_dict(
                         item.get("table_requirements") or item.get("tableRequirements")
                     ),
+                    relation_rules=_normalize_relation_rules(item.get("relation_rules") or item.get("relationRules")),
                     generation_source=str(item.get("generation_source") or item.get("generationSource") or "ai"),
                 )
             )
@@ -217,6 +218,7 @@ def _scenario_cache_payload(scenario: ScenarioDraft, table_name: str) -> dict[st
         "assertions": list(scenario.assertions),
         "table_name": table_name,
         "table_requirement": scenario.table_requirements.get(table_name, ""),
+        "relation_rules": [asdict(rule) for rule in scenario.relation_rules],
     }
 
 
@@ -296,3 +298,32 @@ def _format_params(params: dict[str, object]) -> str:
             continue
         parts.append(f"{key}={value}")
     return ";".join(parts)
+
+
+
+def _normalize_relation_rules(raw_data: object) -> list[RelationRule]:
+    if not isinstance(raw_data, list):
+        return []
+    normalized: list[RelationRule] = []
+    for item in raw_data:
+        if not isinstance(item, dict):
+            continue
+        target_table = str(item.get("target_table") or item.get("targetTable") or "").strip()
+        target_field = str(item.get("target_field") or item.get("targetField") or "").strip()
+        source_table = str(item.get("source_table") or item.get("sourceTable") or "").strip()
+        source_field = str(item.get("source_field") or item.get("sourceField") or "").strip()
+        if not (target_table and target_field and source_table and source_field):
+            continue
+        evidence = item.get("evidence")
+        normalized.append(
+            RelationRule(
+                target_table=target_table,
+                target_field=target_field,
+                source_table=source_table,
+                source_field=source_field,
+                relation_type=str(item.get("relation_type") or item.get("relationType") or "same_value").strip() or "same_value",
+                rationale=str(item.get("rationale") or item.get("reason") or "").strip(),
+                evidence=evidence if isinstance(evidence, dict) else {},
+            )
+        )
+    return normalized

@@ -2,13 +2,14 @@
 
 Phase 5 no longer treats scenario generation and data generation as a fixed if/else chain in CLI.
 
-The new default execution mode is `agent`, which means:
+The current default execution mode is `agent_auto`, which means:
 
-- local tools still collect trace, schema, sample, and local-rule context first
-- the project only emits prompt specs, local methods, and local context
-- scenario generation and test-data generation are delegated to the external model or agent runtime
-- the local preparation workflow is recorded in the output as `agent_run`
-- the prompt bundle is recorded in the output as `agent_bundle`
+- the project still collects trace, schema, sample, and local-rule context first
+- AI is used inside the project to generate scenarios
+- `generate` can also ask AI for table-level field generation decisions
+- final row generation, merge, validation, and SQL rendering still run through local Python services
+
+`agent_auto` is the primary runtime path. `local` and `agent` are retained as fallback modes.
 
 ## Skill Catalog
 
@@ -28,39 +29,29 @@ The current bootstrap exposes these skills to the routing agent:
 
 These skills are not separate shell plugins yet. They are explicit local method nodes mapped onto the existing Python services.
 
-## Supported Strategies
-
-In `agent` mode the project does not execute strategy choice itself. Instead it emits:
-
-- a routing prompt asking the external model to choose `scenario_strategy`
-- a scenario-generation prompt
-- a data-generation prompt
-
-The project still keeps executable local paths in:
-
-- `--strategy-mode local`
-- `--strategy-mode direct`
-
 ## CLI Modes
 
 `draft` and `generate` now support:
 
-- `--strategy-mode agent`
+- `--strategy-mode agent_auto`
   - default mode
+  - AI generates scenarios inside the project
+  - `generate` may also request AI field strategy decisions
+  - final data rows and SQL are still produced by local services
+- `--strategy-mode local`
+  - fallback mode
+  - force local-only behavior
+- `--strategy-mode agent`
+  - fallback mode
   - only prepares prompt specs and local context
   - does not call the model internally
-- `--strategy-mode local`
-  - force local-only behavior
-- `--strategy-mode direct`
-  - keep the previous explicit flag style
-  - `--use-ai-scenarios` and `--use-ai-data` are only meaningful in this mode
 
 ## Output Contract
 
-Both `draft` and `generate` now return `agent_run` and `agent_bundle` when executed in agent mode:
+When `agent` mode is used, both `draft` and `generate` return `agent_run` and `agent_bundle`:
 
 - `decision`
-  - only records that strategy choice is delegated to the external model
+  - records that strategy choice is delegated to the external model
 - `executed_skills`
   - ordered local preparation trace with short summaries
 - `agent_bundle`
@@ -71,21 +62,21 @@ Both `draft` and `generate` now return `agent_run` and `agent_bundle` when execu
   - `local_fields_by_table`
   - `local_reference_scenarios`
 
-This makes the workflow inspectable and keeps model invocation outside the project runtime.
+When `agent_auto` or `local` mode is used in `generate`, the project also renders SQL inside the runtime.
 
 ## Provider Notes
 
-`direct` mode still reuses the optional in-project AI client abstraction:
+`agent_auto` reuses the optional in-project AI client abstraction:
 
 - `openai`
 - `anthropic`
 - `claude_code`
 
-When `API_DATA_GEN_AI_PROVIDER=claude_code`, direct mode goes through the local `claude -p` CLI instead of direct HTTP requests.
+When `API_DATA_GEN_AI_PROVIDER=claude_code`, `agent_auto` goes through the local `claude -p` CLI instead of direct HTTP requests.
 
 ## Current Boundary
 
-This bootstrap solves the architectural problem of hardcoded strategy selection inside the project.
+This bootstrap removes hardcoded `direct` mode selection from the public CLI.
 
 It does not yet provide:
 

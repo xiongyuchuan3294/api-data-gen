@@ -79,6 +79,40 @@ class ReusableStrategyRepositoryTest(unittest.TestCase):
         self.assertIn("INSERT INTO `rrs_test_dev`.reusable_field_strategies", client.executed_calls[1][1][0])
         self.assertIn("'demo_table'", client.executed_calls[1][1][0])
 
+    def test_list_relation_strategies_queries_trace_schema_and_maps_rows(self) -> None:
+        client = _FakeReusableStrategyClient()
+        client.fetch_rows = [
+            {
+                "target_table": "target_table",
+                "target_field": "drft_no",
+                "source_table": "source_table",
+                "source_field": "drft_no",
+                "executor": "local",
+                "generator": "copy_from_context",
+                "params_json": '{"source_field":"drft_no","source_table":"source_table"}',
+                "fallback_generators_json": '["sample_cycle"]',
+                "rationale": "keep consistent",
+                "implementation_hint": "",
+                "implementation_code": "",
+                "relation_reason": "scenario relation",
+                "strategy_source": "scenario_inferred",
+                "relation_type": "same_value",
+                "evidence_json": '{"scenario_id":"ai:chain:1"}',
+                "confidence_score": 0.9,
+            }
+        ]
+        repository = ReusableStrategyRepository(client, Settings())
+
+        records = repository.list_relation_strategies(["target_table", "source_table"])
+
+        self.assertIn("reusable_relation_strategies", client.query)
+        self.assertEqual(("target_table", "source_table", "target_table", "source_table"), client.params)
+        self.assertEqual(1, len(records))
+        self.assertEqual("drft_no", records[0].target_field)
+        self.assertEqual("same_value", records[0].relation_type)
+        self.assertEqual("ai:chain:1", records[0].evidence["scenario_id"])
+        self.assertEqual(0.9, records[0].confidence_score)
+
     def test_save_relation_strategies_creates_and_upserts_trace_schema_tables(self) -> None:
         client = _FakeReusableStrategyClient()
         repository = ReusableStrategyRepository(client, Settings())
@@ -97,7 +131,10 @@ class ReusableStrategyRepositoryTest(unittest.TestCase):
                         fallback_generators=["sample_cycle"],
                     ),
                     relation_reason="跨表票号一致",
-                    strategy_source="field_match_generic",
+                    strategy_source="scenario_inferred",
+                    relation_type="same_value",
+                    evidence={"scenario_id": "ai:chain:1"},
+                    confidence_score=0.9,
                 )
             ]
         )
@@ -107,6 +144,9 @@ class ReusableStrategyRepositoryTest(unittest.TestCase):
         self.assertIn("CREATE TABLE IF NOT EXISTS `rrs_test_dev`.reusable_relation_strategies", client.executed_calls[0][1][1])
         self.assertIn("INSERT INTO `rrs_test_dev`.reusable_relation_strategies", client.executed_calls[1][1][0])
         self.assertIn("'target_table'", client.executed_calls[1][1][0])
+        self.assertIn("relation_type", client.executed_calls[1][1][0])
+        self.assertIn("evidence_json", client.executed_calls[1][1][0])
+        self.assertIn("0.9", client.executed_calls[1][1][0])
 
 
 if __name__ == "__main__":

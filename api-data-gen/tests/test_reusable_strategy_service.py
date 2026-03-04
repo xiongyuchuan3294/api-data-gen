@@ -7,7 +7,6 @@ import tests._bootstrap  # noqa: F401
 from api_data_gen.domain.models import (
     AiTableGenerationAdvice,
     FieldGenerationStrategy,
-    FieldMatchRelation,
     StoredFieldStrategy,
     StoredRelationStrategy,
 )
@@ -67,7 +66,7 @@ class ReusableStrategyServiceTest(unittest.TestCase):
         persisted_fields = {record.field_name for record in repository.field_records}
         self.assertEqual({"result_key", "status_cd"}, persisted_fields)
 
-    def test_load_table_advice_merges_field_and_relation_strategies(self) -> None:
+    def test_load_table_advice_returns_field_strategies_only(self) -> None:
         repository = _FakeReusableStrategyRepository()
         repository.field_records = [
             StoredFieldStrategy(
@@ -92,8 +91,8 @@ class ReusableStrategyServiceTest(unittest.TestCase):
                     generator="copy_from_context",
                     params={"source_table": "source_table", "source_field": "drft_no"},
                 ),
-                relation_reason="跨表票号一致",
-                strategy_source="field_match_generic",
+                relation_reason="same value relation",
+                strategy_source="manual",
             )
         ]
         service = ReusableStrategyService(repository)
@@ -102,21 +101,52 @@ class ReusableStrategyServiceTest(unittest.TestCase):
 
         self.assertEqual("local", advice.field_strategies["result_key"])
         self.assertEqual("concat_template", advice.field_generation_strategies["result_key"].generator)
-        self.assertEqual("local", advice.field_strategies["drft_no"])
-        self.assertEqual("copy_from_context", advice.field_generation_strategies["drft_no"].generator)
+        self.assertNotIn("drft_no", advice.field_strategies)
+        self.assertNotIn("drft_no", advice.field_generation_strategies)
 
-    def test_save_relation_strategies_converts_field_matches_to_copy_from_context(self) -> None:
+    def test_list_relation_strategies_returns_repository_records(self) -> None:
+        repository = _FakeReusableStrategyRepository()
+        repository.relation_records = [
+            StoredRelationStrategy(
+                target_table="target_table",
+                target_field="drft_no",
+                source_table="source_table",
+                source_field="drft_no",
+                strategy=FieldGenerationStrategy(
+                    executor="local",
+                    generator="copy_from_context",
+                    params={"source_table": "source_table", "source_field": "drft_no"},
+                ),
+                relation_reason="same value relation",
+                strategy_source="manual",
+            )
+        ]
+        service = ReusableStrategyService(repository)
+
+        records = service.list_relation_strategies(["target_table", "source_table"])
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("drft_no", records[0].target_field)
+        self.assertEqual("copy_from_context", records[0].strategy.generator)
+
+    def test_save_relation_strategies_persists_relation_records(self) -> None:
         repository = _FakeReusableStrategyRepository()
         service = ReusableStrategyService(repository)
 
         service.save_relation_strategies(
             [
-                FieldMatchRelation(
+                StoredRelationStrategy(
                     target_table="target_table",
                     target_field="ds",
                     source_table="source_table",
                     source_field="ds",
-                    match_reason="分区键一致",
+                    strategy=FieldGenerationStrategy(
+                        executor="local",
+                        generator="copy_from_context",
+                        params={"source_table": "source_table", "source_field": "ds"},
+                    ),
+                    relation_reason="shared date relation",
+                    strategy_source="manual",
                 )
             ]
         )

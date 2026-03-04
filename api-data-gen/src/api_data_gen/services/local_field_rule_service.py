@@ -162,7 +162,22 @@ class LocalFieldRuleService:
             if parsed is None:
                 return None
             output_format = str(params.get("output_format") or params.get("format") or "%Y%m%d")
-            return parsed.strftime(output_format)
+            try:
+                return parsed.strftime(output_format)
+            except ValueError as e:
+                # Invalid format string - try to fix common issues
+                # Replace yyyy-MM-dd with %Y-%m-%d, etc.
+                fixed_format = output_format
+                for old, new in [
+                    ("yyyy", "%Y"), ("yy", "%y"),
+                    ("MM", "%m"), ("dd", "%d"),
+                    ("HH", "%H"), ("mm", "%M"), ("ss", "%S"),
+                ]:
+                    fixed_format = fixed_format.replace(old, new)
+                try:
+                    return parsed.strftime(fixed_format)
+                except ValueError:
+                    return None  # Give up if still invalid
         if normalized == "concat_template":
             template = str(params.get("template") or "").strip()
             if not template:

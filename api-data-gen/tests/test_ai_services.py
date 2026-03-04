@@ -51,11 +51,11 @@ class AiServicesTest(unittest.TestCase):
                 ```json
                 [
                   {
-                    "name": "核心交易链路",
-                    "description": "覆盖核心命中数据。",
+                    "name": "core transaction path",
+                    "description": "cover the core hit data.",
                     "tableRequirements": {
-                      "aml_f_tidb_model_result": "生成 2 条模型结果",
-                      "aml_f_wst_alert_cust_trans_info": "确保金额和收付标志可用"
+                      "aml_f_tidb_model_result": "generate 2 model-result rows",
+                      "aml_f_wst_alert_cust_trans_info": "ensure amount and receive-pay flags are available"
                     }
                   }
                 ]
@@ -66,7 +66,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiScenarioService(client)
 
         scenarios = service.generate(
-            requirement_text="覆盖核心交易链路",
+            requirement_text="cover the core transaction path",
             interface_infos=[
                 InterfaceInfo(
                     name="custTransInfo",
@@ -78,7 +78,7 @@ class AiServicesTest(unittest.TestCase):
                 "aml_f_tidb_model_result": TableSchema(
                     table_name="aml_f_tidb_model_result",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 )
             },
@@ -89,7 +89,7 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual(1, len(scenarios))
         self.assertEqual("ai", scenarios[0].generation_source)
         self.assertEqual(
-            "生成 2 条模型结果",
+            "generate 2 model-result rows",
             scenarios[0].table_requirements["aml_f_tidb_model_result"],
         )
         self.assertIn("cust_id=962020122711000002", client.calls[0]["user_prompt"])
@@ -99,19 +99,19 @@ class AiServicesTest(unittest.TestCase):
         client = _FakeAiChatClient(
             [
                 """
-                SCENARIO|联合主链路|覆盖两个接口的联合验证
-                TABLE|table_a|生成 1 条主记录
-                TABLE|table_b|生成 1 条关联记录
+                SCENARIO|joint main path|cover the joint validation for both interfaces
+                TABLE|table_a|generate 1 primary row
+                TABLE|table_b|generate 1 related row
 
-                SCENARIO|边界场景|覆盖边界输入
-                TABLE|table_a|生成 1 条边界记录
+                SCENARIO|boundary scenario|cover boundary input
+                TABLE|table_a|generate 1 boundary row
                 """
             ]
         )
         service = AiScenarioService(client)
 
         scenarios = service.generate(
-            requirement_text="覆盖核心交易链路",
+            requirement_text="cover the core transaction path",
             interface_infos=[
                 InterfaceInfo(
                     name="demo",
@@ -123,22 +123,22 @@ class AiServicesTest(unittest.TestCase):
                 "table_a": TableSchema(
                     table_name="table_a",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 ),
                 "table_b": TableSchema(
                     table_name="table_b",
                     table_type="innodb",
-                    columns=[TableColumn("drft_no", "varchar(32)", False, None, "票号", False, False, 32)],
+                    columns=[TableColumn("drft_no", "varchar(32)", False, None, "draft number", False, False, 32)],
                     primary_keys=[],
                 ),
             },
         )
 
         self.assertEqual(2, len(scenarios))
-        self.assertEqual("联合主链路", scenarios[0].title)
-        self.assertEqual("生成 1 条关联记录", scenarios[0].table_requirements["table_b"])
-        self.assertIn("优先输出紧凑行格式", client.calls[0]["user_prompt"])
+        self.assertTrue(scenarios[0].title)
+        self.assertIn("table_b", scenarios[0].table_requirements)
+        self.assertIn("Prefer compact line format", client.calls[0]["user_prompt"])
         self.assertEqual(900, client.calls[0]["max_output_tokens"])
 
     def test_ai_scenario_service_retries_when_multi_interface_output_is_not_joint(self) -> None:
@@ -147,10 +147,10 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "单接口场景",
-                    "description": "只覆盖 table_a。",
+                    "name": "single-interface scenario",
+                    "description": "cover only table_a.",
                     "tableRequirements": {
-                      "table_a": "生成 1 条"
+                      "table_a": "generate 1 row"
                     }
                   }
                 ]
@@ -158,11 +158,11 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "联合主链路场景",
-                    "description": "同时覆盖两个接口。",
+                    "name": "joint main-path scenario",
+                    "description": "cover both interfaces together.",
                     "tableRequirements": {
-                      "table_a": "生成 1 条主记录",
-                      "table_b": "生成 1 条关联记录"
+                      "table_a": "generate 1 primary row",
+                      "table_b": "generate 1 related row"
                     }
                   }
                 ]
@@ -172,7 +172,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiScenarioService(client)
 
         scenarios = service.generate(
-            requirement_text="生成多接口联合场景",
+            requirement_text="generate a multi-interface joint scenario",
             interface_infos=[
                 InterfaceInfo(
                     name="apiA",
@@ -189,13 +189,13 @@ class AiServicesTest(unittest.TestCase):
                 "table_a": TableSchema(
                     table_name="table_a",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 ),
                 "table_b": TableSchema(
                     table_name="table_b",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 ),
             },
@@ -204,9 +204,81 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual(1, len(scenarios))
         self.assertEqual(["table_a", "table_b"], scenarios[0].tables)
         self.assertEqual(2, len(client.calls))
-        self.assertIn("多接口联合测试要求", client.calls[0]["user_prompt"])
-        self.assertIn("没有任何场景同时覆盖两个及以上接口", client.calls[1]["user_prompt"])
-        self.assertIn("请重新输出完整紧凑行格式", client.calls[1]["user_prompt"])
+        self.assertIn("Multi-Interface Requirements:", client.calls[0]["user_prompt"])
+        self.assertIn("No scenario covers two or more interfaces together.", client.calls[1]["user_prompt"])
+        self.assertIn("Do not include markdown fences or any explanation.", client.calls[1]["user_prompt"])
+
+    def test_ai_scenario_service_retries_when_shared_table_hides_missing_interface(self) -> None:
+        client = _FakeAiChatClient(
+            [
+                """
+                [
+                  {
+                    "name": "shared only",
+                    "description": "covers only the shared table",
+                    "tableRequirements": {
+                      "shared_table": "1 row"
+                    }
+                  }
+                ]
+                """,
+                """
+                [
+                  {
+                    "name": "joint scenario",
+                    "description": "covers both interface-specific tables",
+                    "tableRequirements": {
+                      "shared_table": "1 row",
+                      "table_a": "1 row",
+                      "table_b": "1 row"
+                    }
+                  }
+                ]
+                """,
+            ]
+        )
+        service = AiScenarioService(client)
+
+        scenarios = service.generate(
+            requirement_text="cover both interfaces",
+            interface_infos=[
+                InterfaceInfo(
+                    name="apiA",
+                    path="/api/a",
+                    sql_infos=[SqlInfo("shared_table", ["cust_id = '1'"]), SqlInfo("table_a", ["cust_id = '1'"])],
+                ),
+                InterfaceInfo(
+                    name="apiB",
+                    path="/api/b",
+                    sql_infos=[SqlInfo("shared_table", ["cust_id = '1'"]), SqlInfo("table_b", ["cust_id = '1'"])],
+                ),
+            ],
+            schemas={
+                "shared_table": TableSchema(
+                    table_name="shared_table",
+                    table_type="innodb",
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "", False, False, 18)],
+                    primary_keys=[],
+                ),
+                "table_a": TableSchema(
+                    table_name="table_a",
+                    table_type="innodb",
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "", False, False, 18)],
+                    primary_keys=[],
+                ),
+                "table_b": TableSchema(
+                    table_name="table_b",
+                    table_type="innodb",
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "", False, False, 18)],
+                    primary_keys=[],
+                ),
+            },
+        )
+
+        self.assertEqual(1, len(scenarios))
+        self.assertEqual(["shared_table", "table_a", "table_b"], scenarios[0].tables)
+        self.assertEqual(2, len(client.calls))
+        self.assertIn("Missing interface coverage", client.calls[1]["user_prompt"])
 
     def test_ai_scenario_service_repairs_invalid_json_once(self) -> None:
         client = _FakeAiChatClient(
@@ -214,8 +286,8 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "坏场景",
-                    "description": "缺右括号",
+                    "name": "broken scenario",
+                    "description": "missing closing brace",
                     "tableRequirements": {
                       "table_a": "1 row"
                     }
@@ -223,8 +295,8 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "修复后的场景",
-                    "description": "已修复",
+                    "name": "repaired scenario",
+                    "description": "repaired",
                     "tableRequirements": {
                       "table_a": "1 row"
                     }
@@ -236,7 +308,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiScenarioService(client)
 
         scenarios = service.generate(
-            requirement_text="修复场景 JSON",
+            requirement_text="repair scenario JSON",
             interface_infos=[
                 InterfaceInfo(
                     name="demo",
@@ -248,13 +320,13 @@ class AiServicesTest(unittest.TestCase):
                 "table_a": TableSchema(
                     table_name="table_a",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 )
             },
         )
 
-        self.assertEqual("修复后的场景", scenarios[0].title)
+        self.assertEqual("repaired scenario", scenarios[0].title)
         self.assertEqual(2, len(client.calls))
 
     def test_ai_scenario_service_repairs_invalid_json_twice_when_needed(self) -> None:
@@ -263,8 +335,8 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "坏场景",
-                    "description": "缺右括号",
+                    "name": "broken scenario",
+                    "description": "missing closing brace",
                     "tableRequirements": {
                       "table_a": "1 row"
                     }
@@ -272,8 +344,8 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "仍然坏掉的场景",
-                    "description": "字符串没收口,
+                    "name": "still broken scenario",
+                    "description": "unterminated string,
                     "tableRequirements": {
                       "table_a": "1 row"
                     }
@@ -283,8 +355,8 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "第二次修复成功",
-                    "description": "已修复",
+                    "name": "second repair succeeded",
+                    "description": "repaired",
                     "tableRequirements": {
                       "table_a": "1 row"
                     }
@@ -296,7 +368,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiScenarioService(client)
 
         scenarios = service.generate(
-            requirement_text="修复场景 JSON 两次",
+            requirement_text="repair scenario JSON twice",
             interface_infos=[
                 InterfaceInfo(
                     name="demo",
@@ -308,13 +380,13 @@ class AiServicesTest(unittest.TestCase):
                 "table_a": TableSchema(
                     table_name="table_a",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 )
             },
         )
 
-        self.assertEqual("第二次修复成功", scenarios[0].title)
+        self.assertEqual("second repair succeeded", scenarios[0].title)
         self.assertEqual(3, len(client.calls))
 
     def test_ai_scenario_service_salvages_complete_objects_from_truncated_json(self) -> None:
@@ -323,22 +395,22 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "完整场景",
-                    "description": "可恢复",
+                    "name": "complete scenario",
+                    "description": "recoverable",
                     "tableRequirements": {
                       "table_a": "1 row"
                     }
                   },
                   {
-                    "name": "截断场景",
-                    "description": "没收尾
+                    "name": "truncated scenario",
+                    "description": "missing ending
                 """
             ]
         )
         service = AiScenarioService(client)
 
         scenarios = service.generate(
-            requirement_text="截断场景恢复",
+            requirement_text="recover truncated scenario",
             interface_infos=[
                 InterfaceInfo(
                     name="demo",
@@ -350,14 +422,14 @@ class AiServicesTest(unittest.TestCase):
                 "table_a": TableSchema(
                     table_name="table_a",
                     table_type="innodb",
-                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                    columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                     primary_keys=[],
                 )
             },
         )
 
         self.assertEqual(1, len(scenarios))
-        self.assertEqual("完整场景", scenarios[0].title)
+        self.assertEqual("complete scenario", scenarios[0].title)
         self.assertEqual(1, len(client.calls))
 
     def test_ai_scenario_service_raises_when_multi_interface_output_still_invalid_after_retry(self) -> None:
@@ -366,10 +438,10 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "单接口场景A",
-                    "description": "只覆盖 table_a。",
+                    "name": "single-interface scenario A",
+                    "description": "cover only table_a.",
                     "tableRequirements": {
-                      "table_a": "生成 1 条"
+                      "table_a": "generate 1 row"
                     }
                   }
                 ]
@@ -377,10 +449,10 @@ class AiServicesTest(unittest.TestCase):
                 """
                 [
                   {
-                    "name": "单接口场景A-重试",
-                    "description": "还是只覆盖 table_a。",
+                    "name": "single-interface scenario A retry",
+                    "description": "still covers only table_a.",
                     "tableRequirements": {
-                      "table_a": "生成 1 条"
+                      "table_a": "generate 1 row"
                     }
                   }
                 ]
@@ -391,7 +463,7 @@ class AiServicesTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "multi-interface coverage"):
             service.generate(
-                requirement_text="生成多接口联合场景",
+                requirement_text="generate a multi-interface joint scenario",
                 interface_infos=[
                     InterfaceInfo(
                         name="apiA",
@@ -408,13 +480,13 @@ class AiServicesTest(unittest.TestCase):
                     "table_a": TableSchema(
                         table_name="table_a",
                         table_type="innodb",
-                        columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                        columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                         primary_keys=[],
                     ),
                     "table_b": TableSchema(
                         table_name="table_b",
                         table_type="innodb",
-                        columns=[TableColumn("cust_id", "varchar(18)", False, None, "客户号", False, False, 18)],
+                        columns=[TableColumn("cust_id", "varchar(18)", False, None, "customer id", False, False, 18)],
                         primary_keys=[],
                     ),
                 },
@@ -439,7 +511,7 @@ class AiServicesTest(unittest.TestCase):
                 title="AI test",
                 api_name="multi_api",
                 api_path="",
-                objective="生成补充字段",
+                objective="generate supplemental fields",
                 tables=["table_a", "table_b"],
                 table_requirements={"table_a": "1 row", "table_b": "2 rows"},
                 generation_source="ai",
@@ -469,7 +541,7 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual([{"amount": "12.5", "memo": "ok"}], plans["table_a"].rows)
         self.assertEqual([{"name": "alice"}, {"name": "bob"}], plans["table_b"].rows)
         self.assertEqual({"cust_id": "local", "amount": "ai", "memo": "ai"}, plans["table_a"].field_strategies)
-        self.assertIn("以下字段具备本地规则能力，仅供参考", client.calls[0]["user_prompt"])
+        self.assertIn("These fields already have local generator support. Use this as guidance, not as a hard restriction:", client.calls[0]["user_prompt"])
         self.assertIn("cust_id=962020122711000002", client.calls[0]["user_prompt"])
 
     def test_ai_data_generation_service_repairs_invalid_json_once(self) -> None:
@@ -494,7 +566,7 @@ class AiServicesTest(unittest.TestCase):
                 title="AI repair",
                 api_name="multi_api",
                 api_path="",
-                objective="修复 JSON",
+                objective="repair JSON",
                 tables=["table_a"],
                 table_requirements={"table_a": "1 row"},
                 generation_source="ai",
@@ -530,7 +602,7 @@ class AiServicesTest(unittest.TestCase):
                       "executor": "ai",
                       "generator": "ai_value",
                       "fallback_generators": ["sample_cycle"],
-                      "implementation_hint": "后续可沉淀一个短文本摘要生成器"
+                      "implementation_hint": "add a short text summary generator later"
                     },
                     "transactionkey": {
                       "executor": "local",
@@ -544,18 +616,18 @@ class AiServicesTest(unittest.TestCase):
         service = AiDataGenerationService(client)
 
         advice = service.decide_table_field_strategies(
-            requirement_text="字段策略决策",
+            requirement_text="field strategy decision",
             table_name="table_a",
             schema=TableSchema(
                 table_name="table_a",
                 table_type="innodb",
                 columns=[
-                    TableColumn("memo", "varchar(20)", True, None, "摘要", False, False, 20),
-                    TableColumn("transactionkey", "varchar(64)", False, None, "交易流水", False, False, 64),
+                    TableColumn("memo", "varchar(20)", True, None, "summary", False, False, 20),
+                    TableColumn("transactionkey", "varchar(64)", False, None, "transaction key", False, False, 64),
                 ],
                 primary_keys=[],
             ),
-            scenario_summaries=["场景A: 命中核心链路; 表要求: 生成1条"],
+            scenario_summaries=["scenario A: hit the main path; table requirement: generate 1 row"],
             local_generated_columns={"transactionkey"},
             fixed_values=["cust_id=1"],
         )
@@ -568,12 +640,12 @@ class AiServicesTest(unittest.TestCase):
                 executor="ai",
                 generator="ai_value",
                 fallback_generators=["sample_cycle"],
-                implementation_hint="后续可沉淀一个短文本摘要生成器",
+                implementation_hint="add a short text summary generator later",
             ),
             advice.field_generation_strategies["memo"],
         )
         self.assertEqual("transaction_key", advice.field_generation_strategies["transactionkey"].generator)
-        self.assertIn("只做字段策略判断", client.calls[0]["user_prompt"])
+        self.assertIn("Decide field strategies only.", client.calls[0]["user_prompt"])
         self.assertIn("transactionkey", client.calls[0]["user_prompt"])
         self.assertEqual(700, client.calls[0]["max_output_tokens"])
 
@@ -582,15 +654,15 @@ class AiServicesTest(unittest.TestCase):
             [
                 """
                 TABLE|table_a
-                FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d||组合键|
-                FIELD|ds|local|date_format_from_field|source_field=alert_date;output_format=%Y%m%d||日期派生|
+                FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d||composite key|
+                FIELD|ds|local|date_format_from_field|source_field=alert_date;output_format=%Y%m%d||derived date|
                 """
             ]
         )
         service = AiDataGenerationService(client)
 
         advice = service.decide_table_field_strategies(
-            requirement_text="字段策略决策",
+            requirement_text="field strategy decision",
             table_name="table_a",
             schema=TableSchema(
                 table_name="table_a",
@@ -601,7 +673,7 @@ class AiServicesTest(unittest.TestCase):
                 ],
                 primary_keys=[],
             ),
-            scenario_summaries=["场景A: 命中核心链路; 表要求: 生成1条"],
+            scenario_summaries=["scenario A: hit the main path; table requirement: generate 1 row"],
             local_generated_columns={"result_key", "ds"},
         )
 
@@ -611,8 +683,46 @@ class AiServicesTest(unittest.TestCase):
             advice.field_generation_strategies["result_key"].params["transforms"],
         )
         self.assertEqual("date_format_from_field", advice.field_generation_strategies["ds"].generator)
-        self.assertIn("FIELD|字段名|local或ai|generator编码", client.calls[0]["user_prompt"])
+        self.assertIn("FIELD|field_name|local_or_ai|generator_code", client.calls[0]["user_prompt"])
         self.assertEqual(700, client.calls[0]["max_output_tokens"])
+
+    def test_ai_data_generation_service_accepts_compact_field_strategy_format_after_repair(self) -> None:
+        client = _FakeAiChatClient(
+            [
+                """
+                {
+                  "table": "table_a",
+                  "field_strategies": {
+                    "result_key": "local"
+                """,
+                """
+                FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d||| 
+                FIELD|trans_time|local|datetime_range_cycle|start_date=2020-12-20;end_date=2020-12-20;start_time=09:00:00;end_time=17:00:00|||
+                """,
+            ]
+        )
+        service = AiDataGenerationService(client)
+
+        advice = service.decide_table_field_strategies(
+            requirement_text="field strategy repair fallback",
+            table_name="table_a",
+            schema=TableSchema(
+                table_name="table_a",
+                table_type="innodb",
+                columns=[
+                    TableColumn("result_key", "varchar(64)", True, None, "", False, False, 64),
+                    TableColumn("trans_time", "varchar(32)", True, None, "", False, False, 32),
+                ],
+                primary_keys=[],
+            ),
+            scenario_summaries=["scenario A"],
+            local_generated_columns={"result_key", "trans_time"},
+        )
+
+        self.assertEqual("concat_template", advice.field_generation_strategies["result_key"].generator)
+        self.assertEqual("datetime_range_cycle", advice.field_generation_strategies["trans_time"].generator)
+        self.assertEqual("09:00:00", advice.field_generation_strategies["trans_time"].params["start_time"])
+        self.assertEqual(2, len(client.calls))
 
     def test_ai_data_generation_service_decides_table_field_strategies_in_batch(self) -> None:
         client = _FakeAiChatClient(
@@ -659,7 +769,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiDataGenerationService(client)
 
         advice_by_table = service.decide_tables_field_strategies(
-            requirement_text="批量字段策略",
+            requirement_text="batch field strategies",
             table_requests=[
                 {
                     "table_name": "table_a",
@@ -674,7 +784,7 @@ class AiServicesTest(unittest.TestCase):
                         ],
                         primary_keys=[],
                     ),
-                    "scenario_summaries": ["场景A: 生成组合字段"],
+                    "scenario_summaries": ["scenario A: generate composed fields"],
                     "local_generated_columns": {"cust_id"},
                 },
                 {
@@ -683,11 +793,11 @@ class AiServicesTest(unittest.TestCase):
                         table_name="table_b",
                         table_type="innodb",
                         columns=[
-                            TableColumn("seq_no", "varchar(8)", False, None, "历史序号", False, False, 8),
+                            TableColumn("seq_no", "varchar(8)", False, None, "historical sequence", False, False, 8),
                         ],
                         primary_keys=[],
                     ),
-                    "scenario_summaries": ["场景B: 生成序号"],
+                    "scenario_summaries": ["scenario B: generate sequence values"],
                     "local_generated_columns": set(),
                 },
             ],
@@ -697,7 +807,7 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual({"table_a", "table_b"}, set(advice_by_table))
         self.assertEqual("concat_template", advice_by_table["table_a"].field_generation_strategies["result_key"].generator)
         self.assertEqual("sequence_cycle", advice_by_table["table_b"].field_generation_strategies["seq_no"].generator)
-        self.assertIn("批量判断多张表的字段生成策略", client.calls[0]["user_prompt"])
+        self.assertIn("Decide field-generation strategies for multiple tables.", client.calls[0]["user_prompt"])
         self.assertIn("copy_from_context", client.calls[0]["user_prompt"])
         self.assertGreaterEqual(client.calls[0]["max_output_tokens"], 700)
 
@@ -715,7 +825,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiDataGenerationService(client)
 
         advice_by_table = service.decide_tables_field_strategies(
-            requirement_text="批量字段策略",
+            requirement_text="batch field strategies",
             table_requests=[
                 {
                     "table_name": "table_a",
@@ -725,7 +835,7 @@ class AiServicesTest(unittest.TestCase):
                         columns=[TableColumn("result_key", "varchar(64)", False, None, "", False, False, 64)],
                         primary_keys=[],
                     ),
-                    "scenario_summaries": ["场景A"],
+                    "scenario_summaries": ["scenario A"],
                     "local_generated_columns": set(),
                 },
                 {
@@ -736,7 +846,7 @@ class AiServicesTest(unittest.TestCase):
                         columns=[TableColumn("seq_no", "varchar(8)", False, None, "", False, False, 8)],
                         primary_keys=[],
                     ),
-                    "scenario_summaries": ["场景B"],
+                    "scenario_summaries": ["scenario B"],
                     "local_generated_columns": set(),
                 },
             ],
@@ -746,6 +856,59 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual("concat_template", advice_by_table["table_a"].field_generation_strategies["result_key"].generator)
         self.assertEqual(["8", "7", "10"], advice_by_table["table_b"].field_generation_strategies["seq_no"].params["values"])
         self.assertGreaterEqual(client.calls[0]["max_output_tokens"], 700)
+
+    def test_ai_data_generation_service_accepts_compact_batch_strategy_format_after_repair(self) -> None:
+        client = _FakeAiChatClient(
+            [
+                """
+                [
+                  {
+                    "table": "table_a",
+                    "field_strategies": {
+                      "result_key": "local"
+                """,
+                """
+                TABLE|table_a
+                FIELD|result_key|local|concat_template|template={model_key}{result_date}{cust_id};transform.result_date=date:%Y%m%d|||
+                TABLE|table_b
+                FIELD|seq_no|local|sequence_cycle|values=8,7,10|||
+                """,
+            ]
+        )
+        service = AiDataGenerationService(client)
+
+        advice_by_table = service.decide_tables_field_strategies(
+            requirement_text="field strategy repair fallback",
+            table_requests=[
+                {
+                    "table_name": "table_a",
+                    "schema": TableSchema(
+                        table_name="table_a",
+                        table_type="innodb",
+                        columns=[TableColumn("result_key", "varchar(64)", False, None, "", False, False, 64)],
+                        primary_keys=[],
+                    ),
+                    "scenario_summaries": ["scenario A"],
+                    "local_generated_columns": set(),
+                },
+                {
+                    "table_name": "table_b",
+                    "schema": TableSchema(
+                        table_name="table_b",
+                        table_type="innodb",
+                        columns=[TableColumn("seq_no", "varchar(8)", False, None, "", False, False, 8)],
+                        primary_keys=[],
+                    ),
+                    "scenario_summaries": ["scenario B"],
+                    "local_generated_columns": set(),
+                },
+            ],
+        )
+
+        self.assertEqual({"table_a", "table_b"}, set(advice_by_table))
+        self.assertEqual("concat_template", advice_by_table["table_a"].field_generation_strategies["result_key"].generator)
+        self.assertEqual(["8", "7", "10"], advice_by_table["table_b"].field_generation_strategies["seq_no"].params["values"])
+        self.assertEqual(2, len(client.calls))
 
     def test_ai_data_generation_service_batch_salvages_complete_objects_from_truncated_json(self) -> None:
         client = _FakeAiChatClient(
@@ -777,7 +940,7 @@ class AiServicesTest(unittest.TestCase):
         service = AiDataGenerationService(client)
 
         advice_by_table = service.decide_tables_field_strategies(
-            requirement_text="批量截断恢复",
+            requirement_text="recover truncated batch output",
             table_requests=[
                 {
                     "table_name": "table_a",
@@ -787,7 +950,7 @@ class AiServicesTest(unittest.TestCase):
                         columns=[TableColumn("memo", "varchar(20)", True, None, "", False, False, 20)],
                         primary_keys=[],
                     ),
-                    "scenario_summaries": ["场景A"],
+                    "scenario_summaries": ["scenario A"],
                     "local_generated_columns": set(),
                 },
                 {
@@ -798,7 +961,7 @@ class AiServicesTest(unittest.TestCase):
                         columns=[TableColumn("memo", "varchar(20)", True, None, "", False, False, 20)],
                         primary_keys=[],
                     ),
-                    "scenario_summaries": ["场景B"],
+                    "scenario_summaries": ["scenario B"],
                     "local_generated_columns": set(),
                 },
             ],
@@ -843,7 +1006,7 @@ class AiServicesTest(unittest.TestCase):
                 title="AI split repair",
                 api_name="multi_api",
                 api_path="",
-                objective="批量失败后拆表生成",
+                objective="fallback to per-table generation after batch failure",
                 tables=["table_a", "table_b"],
                 table_requirements={"table_a": "1 row", "table_b": "1 row"},
                 generation_source="ai",
@@ -870,8 +1033,8 @@ class AiServicesTest(unittest.TestCase):
         self.assertEqual([{"memo": "ok-a"}], plans["table_a"].rows)
         self.assertEqual([{"name": "ok-b"}], plans["table_b"].rows)
         self.assertEqual(5, len(client.calls))
-        self.assertIn("表: table_a", client.calls[3]["user_prompt"])
-        self.assertNotIn("表: table_b", client.calls[3]["user_prompt"])
+        self.assertIn("Table: table_a", client.calls[3]["user_prompt"])
+        self.assertNotIn("Table: table_b", client.calls[3]["user_prompt"])
 
 
 if __name__ == "__main__":

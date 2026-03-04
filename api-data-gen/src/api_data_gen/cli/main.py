@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, replace
@@ -25,21 +25,18 @@ from api_data_gen.services.dict_rule_resolver import DictRuleResolver
 from api_data_gen.services.field_match_discovery_service import FieldMatchDiscoveryService
 from api_data_gen.services.interface_trace_service import InterfaceTraceService
 from api_data_gen.services.insert_render_service import InsertRenderService
-from api_data_gen.services.field_match_alignment_service import FieldMatchAlignmentService
-from api_data_gen.services.field_match_validation_service import FieldMatchValidationService
 from api_data_gen.services.local_field_rule_service import LocalFieldRuleService
 from api_data_gen.services.phase1_validation_service import Phase1ValidationService
 from api_data_gen.services.planning_service import PlanningService
 from api_data_gen.services.record_validation_service import RecordValidationService
+from api_data_gen.services.relation_strategy_alignment_service import RelationStrategyAlignmentService
+from api_data_gen.services.relation_strategy_validation_service import RelationStrategyValidationService
 from api_data_gen.services.requirement_parser import RequirementParser
 from api_data_gen.services.reusable_strategy_service import ReusableStrategyService
 from api_data_gen.services.schema_service import SchemaService
 from api_data_gen.services.sql_apply_service import SqlApplyService
 from api_data_gen.services.sql_script_export_service import SqlScriptExportService
 from api_data_gen.services.sql_parser import SqlParser
-
-DEFAULT_CUMULATIVE_SQL_PATH = Path("output/insert_20260303_235409_agent_auto.sql")
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Local helpers for API trace analysis, planning, and data generation")
@@ -68,22 +65,19 @@ def build_parser() -> argparse.ArgumentParser:
     draft_parser.add_argument("--requirement-file", required=True)
     draft_parser.add_argument("--api", action="append", required=True, help="Interface mapping in the form name=path")
     draft_parser.add_argument("--sample-limit", type=int, default=3)
-    draft_parser.add_argument("--strategy-mode", choices=["agent", "local", "direct", "agent_auto"], default="agent")
+    draft_parser.add_argument("--strategy-mode", choices=["agent_auto", "agent", "local"], default="agent_auto")
     draft_parser.add_argument("--fixed-value", action="append", default=[], help="Fixed field hint, e.g. cust_id='9620...'")
     draft_parser.add_argument("--depend-fixed-value", action="append", default=[], help="Dependent fixed-value hint, free-form text")
-    draft_parser.add_argument("--use-ai-scenarios", action="store_true", help="Generate scenarios with the configured AI model")
     draft_parser.add_argument("--max-agent-turns", type=int, default=10, help="Max agent turns for agent_auto mode")
 
     generate_parser = subparsers.add_parser("generate", help="Build Phase 3 local rows and insert SQL")
     generate_parser.add_argument("--requirement-file", required=True)
     generate_parser.add_argument("--api", action="append", required=True, help="Interface mapping in the form name=path")
     generate_parser.add_argument("--sample-limit", type=int, default=3)
-    generate_parser.add_argument("--strategy-mode", choices=["agent", "local", "direct", "agent_auto"], default="agent")
+    generate_parser.add_argument("--strategy-mode", choices=["agent_auto", "agent", "local"], default="agent_auto")
     generate_parser.add_argument("--generation-tag", default=None, help="Optional batch tag for generated primary keys and local generated values")
     generate_parser.add_argument("--fixed-value", action="append", default=[], help="Fixed field hint, e.g. cust_id='9620...'")
     generate_parser.add_argument("--depend-fixed-value", action="append", default=[], help="Dependent fixed-value hint, free-form text")
-    generate_parser.add_argument("--use-ai-scenarios", action="store_true", help="Generate scenarios with the configured AI model")
-    generate_parser.add_argument("--use-ai-data", action="store_true", help="Let the configured AI model fill non-local fields per scenario")
     generate_parser.add_argument("--strategy-file", default=None, help="Optional strategy_*.json file to reuse field generation strategies locally")
     generate_parser.add_argument("--sql-output-file", default=None, help="Optional path to write a combined SQL script")
     generate_parser.add_argument("--apply-sql", action="store_true", help="Apply generated inserts to the configured MySQL schemas")
@@ -160,13 +154,13 @@ def main() -> None:
         return
 
     if args.command == "draft":
-        print(f"[1/3] 寮€濮嬫墽琛屽満鏅鍒掍换鍔?..")
-        print(f"       绛栫暐妯″紡: {args.strategy_mode}")
-        print(f"       闇€姹傛枃浠? {args.requirement_file}")
-        print(f"       鎺ュ彛: {args.api}")
+        print(f"[1/3] Starting scenario planning...")
+        print(f"       Strategy mode: {args.strategy_mode}")
+        print(f"       Requirement file: {args.requirement_file}")
+        print(f"       Interfaces: {args.api}")
 
         requirement_text = Path(args.requirement_file).read_text(encoding="utf-8")
-        print(f"[2/3] 姝ｅ湪鍒濆鍖栨湇鍔＄粍浠?..")
+        print(f"[2/3] Initializing services...")
 
         interface_service = InterfaceTraceService(trace_repository, SqlParser(), settings)
         planning_service = PlanningService(
@@ -183,8 +177,8 @@ def main() -> None:
         interfaces = [_parse_interface_target(raw_value) for raw_value in args.api]
 
         if args.strategy_mode == "agent_auto":
-            print(f"[3/3] 鎵ц agent_auto 妯″紡 (寮哄埗 AI 鐢熸垚鍦烘櫙)...")
-            print(f"       姝ｅ湪浣跨敤澶у瀷鐢熸垚娴嬭瘯鍦烘櫙...")
+            print(f"[3/3] Running agent_auto mode (force AI scenario generation)...")
+            print(f"       Generating test scenarios with AI...")
             result = planning_service.build_draft(
                 requirement_text,
                 interfaces,
@@ -197,7 +191,7 @@ def main() -> None:
         elif args.strategy_mode == "agent":
             from api_data_gen.agents.orchestrator_service import AgentOrchestratorService
 
-            print(f"[3/3] 鎵ц agent 妯″紡 (鐢熸垚鎻愮ず璇嶅寘)...")
+            print(f"[3/3] Running agent mode (build prompt bundle)...")
             agent_orchestrator = AgentOrchestratorService(
                 planning_service=planning_service,
                 interface_trace_service=interface_service,
@@ -213,42 +207,37 @@ def main() -> None:
                 dependent_fixed_values=args.depend_fixed_value,
             )
         else:
-            use_ai_scenarios = args.strategy_mode == "direct" and args.use_ai_scenarios
-            if use_ai_scenarios:
-                print(f"[3/3] 鎵ц {args.strategy_mode} 妯″紡 (AI鐢熸垚鍦烘櫙)...")
-                _require_ai_config(ai_chat_client)
-            else:
-                print(f"[3/3] 鎵ц {args.strategy_mode} 妯″紡 (绾湰鍦拌鍒?...")
+            print(f"[3/3] Running local mode (local rules only)...")
             result = planning_service.build_draft(
                 requirement_text,
                 interfaces,
                 args.sample_limit,
                 fixed_values=args.fixed_value,
                 dependent_fixed_values=args.depend_fixed_value,
-                use_ai_scenarios=use_ai_scenarios,
+                use_ai_scenarios=False,
             )
 
-        print(f"       鍦烘櫙瑙勫垝瀹屾垚锛屾鍦ㄤ繚瀛樼粨鏋?..")
+        print(f"       Scenario planning complete. Saving results...")
 
-        # 鑷姩杈撳嚭鍒?output 鏂囦欢澶?
+        # Automatically save artifacts to the output directory.
         _auto_save_output(result, args.strategy_mode, None, client)
-        print(f"\n=== 浠诲姟瀹屾垚 ===")
+        print(f"\n=== Task Complete ===")
         if hasattr(result, 'scenarios') and result.scenarios:
-            print(f"       鐢熸垚鍦烘櫙鏁? {len(result.scenarios)}")
+            print(f"       Scenario count: {len(result.scenarios)}")
         if hasattr(result, 'table_plans') and result.table_plans:
-            print(f"       鐢熸垚琛ㄨ鍒掓暟: {len(result.table_plans)}")
+            print(f"       Table plan count: {len(result.table_plans)}")
 
         print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
         return
 
     if args.command == "generate":
-        print(f"[1/4] 寮€濮嬫墽琛屾暟鎹敓鎴愪换鍔?..")
-        print(f"       绛栫暐妯″紡: {args.strategy_mode}")
-        print(f"       闇€姹傛枃浠? {args.requirement_file}")
-        print(f"       鎺ュ彛: {args.api}")
+        print(f"[1/4] Starting data generation...")
+        print(f"       Strategy mode: {args.strategy_mode}")
+        print(f"       Requirement file: {args.requirement_file}")
+        print(f"       Interfaces: {args.api}")
 
         requirement_text = Path(args.requirement_file).read_text(encoding="utf-8")
-        print(f"[2/4] 姝ｅ湪鍒濆鍖栨湇鍔＄粍浠?..")
+        print(f"[2/4] Initializing services...")
 
         interface_service = InterfaceTraceService(trace_repository, SqlParser(), settings)
         planning_service = PlanningService(
@@ -267,15 +256,14 @@ def main() -> None:
             schema_repository=schema_repository,
             insert_render_service=InsertRenderService(),
             sample_repository=sample_repository,
-            field_match_alignment_service=FieldMatchAlignmentService(field_match_repository),
-            field_match_validation_service=FieldMatchValidationService(field_match_repository),
+            relation_strategy_alignment_service=RelationStrategyAlignmentService(reusable_strategy_service),
+            relation_strategy_validation_service=RelationStrategyValidationService(reusable_strategy_service),
             local_field_rule_service=local_field_rule_service,
             record_validation_service=RecordValidationService(),
             ai_data_analysis_service=optional_ai_analysis_service,
             ai_data_generation_service=optional_ai_data_service,
             ai_cache_service=ai_cache_service,
             reusable_strategy_service=reusable_strategy_service,
-            field_match_repository=field_match_repository,
         )
         interfaces = [_parse_interface_target(raw_value) for raw_value in args.api]
         generation_tag = args.generation_tag
@@ -287,17 +275,17 @@ def main() -> None:
 
             strategy_export_service = StrategyExportService()
             imported_field_decisions = strategy_export_service.load_field_decisions(args.strategy_file)
-            print(f"       复用策略文件: {args.strategy_file}")
+            print(f"       Reusing strategy file: {args.strategy_file}")
 
         if args.strategy_mode == "agent_auto":
             if args.strategy_file:
-                print(f"[3/4] 鎵ц agent_auto 妯″紡 (AI 鐢熸垚鍦烘櫙 + 复用策略文件 + 鏈湴鐢熸垚鏁版嵁)...")
+                print(f"[3/4] Running agent_auto mode (AI scenarios + reused strategy file + local data generation)...")
             else:
-                print(f"[3/4] 鎵ц agent_auto 妯″紡 (AI 鐢熸垚鍦烘櫙 + AI 琛ㄧ骇瀛楁鍐崇瓥 + 鏈湴鐢熸垚鏁版嵁)...")
+                print(f"[3/4] Running agent_auto mode (AI scenarios + AI table-level field decisions + local data generation)...")
             if args.strategy_file:
-                print(f"       姝ｅ湪浣跨敤 AI 鐢熸垚鍦烘櫙锛屽瓧娈垫潵婧愮瓥鐣ュ皢鐩存帴澶嶇敤 strategy-file锛屼笉鍐嶈姹?AI 鍐崇瓥...")
+                print(f"       Generating scenarios with AI and reusing field-source decisions from the strategy file...")
             else:
-                print(f"       姝ｅ湪浣跨敤 AI 鐢熸垚鍦烘櫙锛屽苟鍦ㄦ瘡寮犺〃涓婂仛涓€娆″瓧娈垫潵婧愬喅绛栵紝鏁版嵁浠嶇敱鏈湴瑙勫垯鐢熸垚...")
+                print(f"       Generating scenarios with AI and deciding field sources per table; row data still comes from local rules...")
             result = generation_service.generate(
                 requirement_text,
                 interfaces,
@@ -322,7 +310,7 @@ def main() -> None:
                 sample_repository=sample_repository,
                 local_field_rule_service=local_field_rule_service,
             )
-            print(f"[3/4] 鎵ц agent 妯″紡 (鐢熸垚鎻愮ず璇嶅寘)...")
+            print(f"[3/4] Running agent mode (build prompt bundle)...")
             result = agent_orchestrator.generate(
                 requirement_text,
                 interfaces,
@@ -332,17 +320,8 @@ def main() -> None:
                 dependent_fixed_values=args.depend_fixed_value,
             )
         else:
-            use_ai_scenarios = args.strategy_mode == "direct" and args.use_ai_scenarios
-            use_ai_data = args.strategy_mode == "direct" and args.use_ai_data
-            if use_ai_scenarios:
-                print(f"[3/4] 鎵ц {args.strategy_mode} 妯″紡 (AI鐢熸垚鍦烘櫙 + 鏈湴鐢熸垚鏁版嵁)...")
-            elif use_ai_data:
-                print(f"[3/4] 鎵ц {args.strategy_mode} 妯″紡 (鏈湴鐢熸垚鍦烘櫙 + AI鐢熸垚鏁版嵁)...")
-            else:
-                print(f"[3/4] 鎵ц {args.strategy_mode} 妯″紡 (绾湰鍦拌鍒?...")
-            if use_ai_scenarios or use_ai_data:
-                _require_ai_config(ai_chat_client)
-            print(f"       姝ｅ湪鐢熸垚娴嬭瘯鏁版嵁...")
+            print(f"[3/4] Running local mode (local rules only)...")
+            print(f"       Generating test data...")
             result = generation_service.generate(
                 requirement_text,
                 interfaces,
@@ -350,16 +329,16 @@ def main() -> None:
                 generation_tag=generation_tag,
                 fixed_values=args.fixed_value,
                 dependent_fixed_values=args.depend_fixed_value,
-                use_ai_scenarios=use_ai_scenarios,
-                use_ai_data=use_ai_data,
+                use_ai_scenarios=False,
+                use_ai_data=False,
                 imported_field_decisions=imported_field_decisions,
             )
-        print(f"[4/4] 鏁版嵁鐢熸垚瀹屾垚锛屾鍦ㄤ繚瀛樼粨鏋?..")
+        print(f"[4/4] Data generation complete. Saving results...")
 
         if args.strategy_mode == "agent" and (args.sql_output_file or args.apply_sql):
-            raise ValueError("Agent mode only prepares prompt specs and local context. Use local/direct/agent_auto mode to render or apply SQL.")
+            raise ValueError("Agent mode only prepares prompt specs and local context. Use local/agent_auto mode to render or apply SQL.")
 
-        # 鑷姩杈撳嚭鍒?output 鏂囦欢澶?
+        # Automatically save artifacts to the output directory.
         _auto_save_output(
             result,
             args.strategy_mode,
@@ -370,7 +349,7 @@ def main() -> None:
         )
 
         if args.sql_output_file:
-            print(f"       姝ｅ湪淇濆瓨 SQL 鏂囦欢鍒? {args.sql_output_file}")
+            print(f"       Saving SQL file to: {args.sql_output_file}")
             sql_export_service = SqlScriptExportService(client)
             output_path = Path(args.sql_output_file)
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -390,7 +369,7 @@ def main() -> None:
                 )
             output_path.write_text(script, encoding="utf-8")
         if args.apply_sql:
-            print(f"       姝ｅ湪灏?SQL 搴旂敤鍒版暟鎹簱...")
+            print(f"       Applying SQL to the database...")
             apply_result = SqlApplyService(client).apply(
                 result.generated_tables,
                 result.validation_checks,
@@ -398,13 +377,13 @@ def main() -> None:
             )
             result = replace(result, apply_result=apply_result)
 
-        print(f"\n=== 浠诲姟瀹屾垚 ===")
+        print(f"\n=== Task Complete ===")
         if hasattr(result, 'generated_tables') and result.generated_tables:
             total_tables = len(result.generated_tables)
             total_rows = sum(t.row_count for t in result.generated_tables)
-            print(f"       鐢熸垚琛ㄦ暟: {total_tables}, 鎬昏鏁? {total_rows}")
+            print(f"       Table count: {total_tables}, total rows: {total_rows}")
         if hasattr(result, 'scenarios') and result.scenarios:
-            print(f"       鍦烘櫙鏁? {len(result.scenarios)}")
+            print(f"       Scenario count: {len(result.scenarios)}")
 
         print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
         return
@@ -463,15 +442,15 @@ def _auto_save_output(
     from api_data_gen.services.sql_script_export_service import SqlScriptExportService
     from api_data_gen.services.strategy_export_service import StrategyExportService
 
-    # 鍒涘缓 output 鏂囦欢澶?
+    # Create the output directory.
     output_dir = Path("output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 鐢熸垚鏃堕棿鎴?
+    # Build the timestamp suffix.
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     mode_suffix = strategy_mode
 
-    # 淇濆瓨 JSON 缁撴灉
+    # Persist the JSON result.
     json_filename = f"result_{timestamp}_{mode_suffix}.json"
     json_path = output_dir / json_filename
     json_path.write_text(json.dumps(asdict(result), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -504,8 +483,8 @@ def _auto_save_output(
         candidate_path.write_text(json.dumps(candidate_payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[Output] Generator candidates saved to: {candidate_path}")
 
-    # 瀵逛簬 local銆乨irect 鍜?agent_auto 妯″紡锛岄澶栦繚瀛?SQL 鏂囦欢
-    if strategy_mode in ("local", "direct", "agent_auto") and hasattr(result, "generated_tables") and result.generated_tables:
+    # For local and agent_auto modes, also save the SQL file.
+    if strategy_mode in ("local", "agent_auto") and hasattr(result, "generated_tables") and result.generated_tables:
         sql_export_service = SqlScriptExportService(client)
         sql_filename = f"insert_{timestamp}_{mode_suffix}.sql"
         sql_path = output_dir / sql_filename
@@ -517,19 +496,6 @@ def _auto_save_output(
         sql_path.write_text(script, encoding="utf-8")
         print(f"[Output] SQL saved to: {sql_path}")
 
-        cumulative_sql_path = DEFAULT_CUMULATIVE_SQL_PATH
-        if cumulative_sql_path.exists():
-            cumulative_script = sql_export_service.append_missing_scenarios(
-                existing_script=cumulative_sql_path.read_text(encoding="utf-8"),
-                generated_tables=result.generated_tables,
-                validation_checks=result.validation_checks,
-                generation_tag=generation_tag,
-                batch_label=datetime.now().isoformat(timespec="seconds"),
-            )
-        else:
-            cumulative_script = script
-        cumulative_sql_path.write_text(cumulative_script, encoding="utf-8")
-        print(f"[Output] Cumulative SQL saved to: {cumulative_sql_path}")
 
 
 def _build_optional_ai_scenario_service(ai_chat_client: AiChatClient):

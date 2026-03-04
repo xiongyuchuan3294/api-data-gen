@@ -170,6 +170,31 @@ class _FailingAiScenarioService:
         raise RuntimeError("ssl verify failed")
 
 
+class _EmptyTablesAiScenarioService:
+    def generate(
+        self,
+        requirement_text: str,
+        interface_infos: list[InterfaceInfo],
+        schemas: dict[str, TableSchema],
+        fixed_values: list[str] | None = None,
+        dependent_fixed_values: list[str] | None = None,
+    ):
+        from api_data_gen.domain.models import ScenarioDraft
+
+        return [
+            ScenarioDraft(
+                id="ai:empty_tables:1",
+                title="AI empty tables",
+                api_name="multi_api",
+                api_path="",
+                objective="AI scenario relies on derived relation rules.",
+                tables=[],
+                table_requirements={},
+                generation_source="ai",
+            )
+        ]
+
+
 class PlanningServiceTest(unittest.TestCase):
     def test_build_draft_outputs_scenarios_and_table_plans(self) -> None:
         service = PlanningService(
@@ -210,6 +235,7 @@ class PlanningServiceTest(unittest.TestCase):
         baseline = next(scenario for scenario in report.scenarios if scenario.id == "custTransInfo:baseline")
         self.assertEqual("10", baseline.request_inputs["pageSize"])
         self.assertIn("cust_id = '962020122711000002'", baseline.fixed_conditions)
+        self.assertTrue(any(rule.target_table == "aml_f_wst_alert_cust_trans_info" and rule.target_field == "cust_id" and rule.source_table == "aml_f_tidb_model_result" and rule.source_field == "cust_id" for rule in baseline.relation_rules))
 
     def test_build_draft_uses_ai_scenarios_when_enabled(self) -> None:
         ai_scenario_service = _FakeAiScenarioService()
@@ -248,6 +274,39 @@ class PlanningServiceTest(unittest.TestCase):
             ai_scenario_service.calls[0]["dependent_fixed_values"],
         )
         self.assertEqual(3, len(report.table_plans))
+
+    def test_build_draft_populates_tables_from_derived_relation_rules(self) -> None:
+        service = PlanningService(
+            settings=Settings(),
+            trace_repository=_FakeTraceRepository(),
+            interface_trace_service=_FakeInterfaceTraceService(),
+            schema_service=_FakeSchemaService(),
+            sample_repository=_FakeSampleRepository(),
+            dict_rule_resolver=_FakeDictRuleResolver(),
+            requirement_parser=RequirementParser(),
+            ai_scenario_service=_EmptyTablesAiScenarioService(),
+        )
+
+        report = service.build_draft(
+            requirement_text="AI scenario derives table coverage from relation rules.",
+            interfaces=[
+                InterfaceTarget(name="custTransInfo", path="/wst/custTransInfo"),
+                InterfaceTarget(name="custDrftRecord", path="/wst/custDrftRecord"),
+            ],
+            sample_limit=2,
+            use_ai_scenarios=True,
+        )
+
+        self.assertEqual(1, len(report.scenarios))
+        self.assertCountEqual(
+            [
+                "aml_f_tidb_model_result",
+                "aml_f_wst_alert_cust_trans_info",
+                "aml_f_wst_alert_cust_drft_record",
+            ],
+            report.scenarios[0].tables,
+        )
+        self.assertTrue(report.scenarios[0].relation_rules)
 
     def test_build_draft_raises_when_ai_scenarios_fail(self) -> None:
         service = PlanningService(
